@@ -16,6 +16,6 @@ extern int buffer_write(int fd, const char* buffer, size_t size);
 
 extern bool stdin_stdout_fifo_close(int* stdinFIFO, int* stdoutFIFO);
 
-extern bool stdin_stdout_fifo_open(int* stdinFIFO, int* stdoutFIFO);
+extern bool stdin_stdout_fifo_open(int* stdinFIFO, const char stdinFIFOname[], int* stdoutFIFO, const char stdoutFIFOname[], bool openOrder);
 
 #endif // FIFO_H

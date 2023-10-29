@@ -1,5 +1,6 @@
 #include "debug.h"
 #include "socket.h"
+#include "fifo.h"
 
 #include <stdlib.h>
 #include <signal.h>
@@ -11,38 +12,45 @@ pthread_t stdoutThread;
 int serverfd = -1;
 int sockfd = -1;
 
+int stdinFIFO = -1;
+int stdoutFIFO = -1;
+
 void* stdout_routine(void* arg)
 {
-  info_print("Redirecting socket -> stdout");
+  info_print("Redirecting socket -> fifo");
 
   char buffer[1024];
   memset(buffer, '\0', sizeof(buffer));
 
   while(socket_read(sockfd, buffer, sizeof(buffer)) > 0)
   {
-    fputs(buffer, stdout);
+    fprintf(stdout, "[socket -> fifo]: %s", buffer);
+
+    if(buffer_write(stdinFIFO, buffer, sizeof(buffer)) == -1) break;
 
     memset(buffer, '\0', sizeof(buffer));
   }
-  info_print("Stopped socket -> stdout");
+  info_print("Stopped socket -> fifo");
 
   return NULL;
 }
 
 void* stdin_routine(void* arg)
 {
-  info_print("Redirecting stdin -> socket");
+  info_print("Redirecting fifo -> socket");
 
   char buffer[1024];
   memset(buffer, '\0', sizeof(buffer));
 
-  while(fgets(buffer, sizeof(buffer), stdin) != NULL)
+  while(buffer_read(stdoutFIFO, buffer, sizeof(buffer)) > 0)
   {
+    fprintf(stdout, "[fifo -> socket]: %s", buffer);
+
     if(socket_write(sockfd, buffer, sizeof(buffer)) == -1) break;
-  
+
     memset(buffer, '\0', sizeof(buffer));
   }
-  info_print("Stopped stdin -> socket");
+  info_print("Stopped fifo -> socket");
 
   return NULL;
 }
@@ -94,6 +102,8 @@ void signal_sigint_handler(int sig)
 
   // stdin_stdout_thread_cancel(stdinThread, stdoutThread);
 
+  stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO);
+
   socket_close(&sockfd);
   socket_close(&serverfd);
 
@@ -107,8 +117,10 @@ void signals_handler_setup(void)
   signal(SIGPIPE, SIG_IGN); // Ignores SIGPIPE
 }
 
-void server_process(const char address[], int port)
+int server_process(const char address[], int port, const char stdinFIFOname[], const char stdoutFIFOname[], bool openOrder)
 {
+  if(!stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, openOrder)) return 1;
+
   info_print("Creating socket server");
 
   if(server_socket_create(&serverfd, address, port, 1))
@@ -127,10 +139,15 @@ void server_process(const char address[], int port)
     }
     socket_close(&serverfd);
   }
+  if(!stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO)) return 2;
+
+  return 0;
 }
 
-void client_process(const char address[], int port)
+int client_process(const char address[], int port, const char stdinFIFOname[], const char stdoutFIFOname[], bool openOrder)
 {
+  if(!stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, openOrder)) return 1;
+
   info_print("Creating socket client");
 
   if(client_socket_create(&sockfd, address, port))
@@ -141,6 +158,9 @@ void client_process(const char address[], int port)
     }
     socket_close(&sockfd);
   }
+  if(!stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO)) return 2;
+  
+  return 0;
 }
 
 int main(int argc, char* argv[])
@@ -149,12 +169,15 @@ int main(int argc, char* argv[])
 
   char address[] = "";
   int port = 5555;
+
+  char stdinFIFOname[] = "stdin-fifo";
+  char stdoutFIFOname[] = "stdout-fifo";
+
+  bool openOrder = true;
   
   if(argc >= 2 && strcmp(argv[1], "server") == 0)
   {
-    server_process(address, port);
+    return server_process(address, port, stdinFIFOname, stdoutFIFOname, openOrder);
   }
-  else client_process(address, port);
-
-  return 0;
+  else return client_process(address, port, stdinFIFOname, stdoutFIFOname, openOrder);
 }

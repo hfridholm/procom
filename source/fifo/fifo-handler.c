@@ -1,10 +1,10 @@
 #include "../fifo.h"
 
-bool stdin_fifo_open(int* stdinFIFO)
+bool stdin_fifo_open(int* stdinFIFO, const char stdinFIFOname[])
 {
   info_print("Opening stdin-fifo");
 
-  *stdinFIFO = open("stdin-fifo", O_WRONLY);
+  *stdinFIFO = open(stdinFIFOname, O_WRONLY);
 
   if(*stdinFIFO == -1)
   {
@@ -15,11 +15,11 @@ bool stdin_fifo_open(int* stdinFIFO)
   return true;
 }
 
-bool stdout_fifo_open(int* stdoutFIFO)
+bool stdout_fifo_open(int* stdoutFIFO, const char stdoutFIFOname[])
 {
   info_print("Opening stdout-fifo");
 
-  *stdoutFIFO = open("stdout-fifo", O_RDONLY);
+  *stdoutFIFO = open(stdoutFIFOname, O_RDONLY);
   
   if(*stdoutFIFO == -1)
   {
@@ -60,15 +60,29 @@ bool stdout_fifo_close(int* stdoutFIFO)
   return true;
 }
 
-bool stdin_stdout_fifo_open(int* stdinFIFO, int* stdoutFIFO)
+bool stdin_stdout_fifo_open(int* stdinFIFO, const char stdinFIFOname[], int* stdoutFIFO, const char stdoutFIFOname[], bool openOrder)
 {
-  if(!stdin_fifo_open(stdinFIFO)) return false;
-
-  if(!stdout_fifo_open(stdoutFIFO))
+  if(openOrder)
   {
-    stdin_fifo_close(stdinFIFO);
+    if(!stdin_fifo_open(stdinFIFO, stdinFIFOname)) return false;
 
-    return false;
+    if(!stdout_fifo_open(stdoutFIFO, stdoutFIFOname))
+    {
+      stdin_fifo_close(stdinFIFO);
+
+      return false;
+    }
+  }
+  else
+  {
+    if(!stdout_fifo_open(stdoutFIFO, stdoutFIFOname)) return false;
+
+    if(!stdin_fifo_open(stdinFIFO, stdinFIFOname))
+    {
+      stdout_fifo_close(stdoutFIFO);
+
+      return false;
+    }
   }
   return true;
 }

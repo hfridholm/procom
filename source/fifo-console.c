@@ -13,6 +13,7 @@ void* stdout_routine(void* arg)
   info_print("Redirecting from stdout-fifo to stdout");
 
   char buffer[1024];
+  memset(buffer, '\0', sizeof(buffer));
 
   while(buffer_read(stdoutFIFO, buffer, sizeof(buffer)) > 0)
   {
@@ -30,12 +31,15 @@ void* stdin_routine(void* arg)
   info_print("Redirecting from stdin to stdin-fifo");
 
   char buffer[1024];
+  memset(buffer, '\0', sizeof(buffer));
 
   while(fgets(buffer, sizeof(buffer), stdin) != NULL)
   {
     int status = buffer_write(stdinFIFO, buffer, sizeof(buffer));
 
     if(status == -1) break;
+
+    memset(buffer, '\0', sizeof(buffer));
   }
   info_print("Stopped redirecting to stdin-fifo");
 
@@ -93,7 +97,32 @@ int main(int argc, char* argv[])
 {
   signals_handler_setup();
 
-  if(!stdin_stdout_fifo_open(&stdinFIFO, &stdoutFIFO)) return 1;
+  char stdinFIFOname[64];
+  char stdoutFIFOname[64];
+
+  if(argc >= 3)
+  {
+    strcpy(stdinFIFOname, argv[1]);
+    strcpy(stdoutFIFOname, argv[2]);
+  }
+  else 
+  {
+    strcpy(stdinFIFOname, "stdin-fifo");
+    strcpy(stdoutFIFOname, "stdout-fifo");
+  }
+
+  bool openOrder = true;
+
+  if(argc >= 4)
+  {
+    if(strcmp(argv[3], "reverse") == 0) openOrder = false;
+  }
+
+  fprintf(stdout, "stdinFIFO: (%s)\n", stdinFIFOname);
+  fprintf(stdout, "stdoutFIFO: (%s)\n", stdoutFIFOname);
+  fprintf(stdout, "openOrder: %d\n", openOrder);
+
+  if(!stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, openOrder)) return 1;
 
   pthread_t stdinThread, stdoutThread;
 
