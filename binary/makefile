@@ -31,6 +31,9 @@ fifo-socket-server: %: $(OBJECT_FOLDER)/%.o $(SOCKET_OBJECT_FILES) $(FIFO_OBJECT
 fifo-console: %: $(OBJECT_FOLDER)/%.o $(FIFO_OBJECT_FILES) $(SOURCE_FOLDER)/%.c $(FIFO_SOURCE_FILES)
 	$(COMPILER) $(OBJECT_FOLDER)/$@.o $(FIFO_OBJECT_FILES) $(FIFO_LINKER_FLAGS) -o $@
 
+console: %: $(OBJECT_FOLDER)/%.o $(SOURCE_FOLDER)/%.c
+	$(COMPILER) $(OBJECT_FOLDER)/$@.o -o $@
+
 # These are rules for compiling object files out of source files
 $(OBJECT_FOLDER)/%.o: $(SOURCE_FOLDER)/*/%.c 
 	$(COMPILER) $< -c $(COMPILE_FLAGS) -o $@
