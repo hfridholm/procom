@@ -1,11 +1,7 @@
-#include <stdio.h>
+#include "debug.h"
+
 #include <stdlib.h>
 #include <signal.h>
-
-void error_print(char* format, ...)
-{
-  fprintf(stderr, "[ ERROR ]: %s\n", format);
-}
 
 void signal_sigint_handler(int sig)
 {

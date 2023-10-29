@@ -1,17 +1,6 @@
+#include "debug.h"
 #include "socket.h"
 #include "fifo.h"
-
-#include <stdio.h>
-
-void error_print(char* format, ...)
-{
-  fprintf(stderr, "[ ERROR ]: %s\n", format);
-}
-
-void info_print(char* format, ...)
-{
-  fprintf(stdout, "[ INFO ]: %s\n", format);
-}
 
 int main(int argc, char* argv[])
 {
