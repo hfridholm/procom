@@ -147,7 +147,7 @@ int main(int argc, char* argv[])
 {
   signals_handler_setup();
 
-  char address[] = "";
+  char address[] = "127.0.0.1";
   int port = 5555;
   
   if(argc >= 2 && strcmp(argv[1], "server") == 0)

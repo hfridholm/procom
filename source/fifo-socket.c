@@ -24,7 +24,7 @@ void* stdout_routine(void* arg)
 
   while(socket_read(sockfd, buffer, sizeof(buffer)) > 0)
   {
-    fprintf(stdout, "[socket -> fifo]: %s", buffer);
+    debug_print(stdout, "socket -> fifo", "%s", buffer);
 
     if(buffer_write(stdinFIFO, buffer, sizeof(buffer)) == -1) break;
 
@@ -44,7 +44,7 @@ void* stdin_routine(void* arg)
 
   while(buffer_read(stdoutFIFO, buffer, sizeof(buffer)) > 0)
   {
-    fprintf(stdout, "[fifo -> socket]: %s", buffer);
+    debug_print(stdout, "fifo -> socket", "%s", buffer);
 
     if(socket_write(sockfd, buffer, sizeof(buffer)) == -1) break;
 
