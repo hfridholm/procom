@@ -6,6 +6,8 @@
 #include <signal.h>
 #include <pthread.h>
 
+// SIGUSR1 - interrupting threads
+
 pthread_t stdinThread;
 pthread_t stdoutThread;
 
@@ -21,8 +23,10 @@ void* stdout_routine(void* arg)
 
   char buffer[1024];
   memset(buffer, '\0', sizeof(buffer));
+  
+  int status;
 
-  while(socket_read(sockfd, buffer, sizeof(buffer)) > 0)
+  while((status = socket_read(sockfd, buffer, sizeof(buffer))) > 0)
   {
     debug_print(stdout, "socket -> fifo", "%s", buffer);
 
@@ -31,6 +35,15 @@ void* stdout_routine(void* arg)
     memset(buffer, '\0', sizeof(buffer));
   }
   info_print("Stopped socket -> fifo");
+
+  // If stdin thread has interrupted stdout thread
+  if(status == -1 && errno == EINTR)
+  {
+    info_print("stdout routine interrupted"); 
+  }
+
+  // Interrupt stdin thread
+  pthread_kill(stdinThread, SIGUSR1);
 
   return NULL;
 }
@@ -42,7 +55,9 @@ void* stdin_routine(void* arg)
   char buffer[1024];
   memset(buffer, '\0', sizeof(buffer));
 
-  while(buffer_read(stdoutFIFO, buffer, sizeof(buffer)) > 0)
+  int status;
+
+  while((status = buffer_read(stdoutFIFO, buffer, sizeof(buffer))) > 0)
   {
     debug_print(stdout, "fifo -> socket", "%s", buffer);
 
@@ -52,19 +67,16 @@ void* stdin_routine(void* arg)
   }
   info_print("Stopped fifo -> socket");
 
-  return NULL;
-}
+  // If stdout thread has interrupted stdin thread
+  if(status == -1 && errno == EINTR)
+  {
+    info_print("stdin routine interrupted"); 
+  }
 
-void stdin_stdout_thread_cancel(pthread_t stdinThread, pthread_t stdoutThread)
-{
-  if(pthread_cancel(stdinThread != 0))
-  {
-    error_print("Could not cancel stdin thread");
-  }
-  if(pthread_cancel(stdoutThread != 0))
-  {
-    error_print("Could not cancel stdout thread");
-  }
+  // Interrupt stdout thread
+  pthread_kill(stdoutThread, SIGUSR1);
+
+  return NULL;
 }
 
 bool stdin_stdout_thread_create(pthread_t* stdinThread, pthread_t* stdoutThread)
@@ -78,6 +90,9 @@ bool stdin_stdout_thread_create(pthread_t* stdinThread, pthread_t* stdoutThread)
   if(pthread_create(stdoutThread, NULL, &stdout_routine, NULL) != 0)
   {
     error_print("Could not create stdout thread");
+
+    // Interrupt stdin thread
+    pthread_kill(*stdinThread, SIGUSR1);
 
     return false;
   }
@@ -96,41 +111,75 @@ void stdin_stdout_thread_join(pthread_t stdinThread, pthread_t stdoutThread)
   }
 }
 
-void signal_sigint_handler(int sig)
+// This is executed when the user interrupts the program
+// - interrupt and stop the threads
+// - close stdin and stdout FIFOs
+// - close sock and server sockets
+// - exit the program
+void sigint_handler(int signum)
 {
-  error_print("Keyboard interrupt");
-
-  // stdin_stdout_thread_cancel(stdinThread, stdoutThread);
+  info_print("Keyboard interrupt");
 
   stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO);
 
   socket_close(&sockfd);
   socket_close(&serverfd);
 
-  exit(1);
+  exit(1); // Exits the program with status 1
+}
+
+void sigint_handler_setup(void)
+{
+  struct sigaction sigAction;
+
+  sigAction.sa_handler = sigint_handler;
+  sigAction.sa_flags = 0;
+  sigemptyset(&sigAction.sa_mask);
+
+  sigaction(SIGINT, &sigAction, NULL);
+}
+
+void sigusr1_handler(int signum) {}
+
+void sigusr1_handler_setup(void)
+{
+  struct sigaction sigAction;
+
+  sigAction.sa_handler = sigusr1_handler;
+  sigAction.sa_flags = 0;
+  sigemptyset(&sigAction.sa_mask);
+
+  sigaction(SIGUSR1, &sigAction, NULL);
 }
 
 void signals_handler_setup(void)
 {
-  signal(SIGINT, signal_sigint_handler); // Handles SIGINT
-
   signal(SIGPIPE, SIG_IGN); // Ignores SIGPIPE
+  
+  sigint_handler_setup();
+
+  sigusr1_handler_setup();
 }
 
+// Refactore this function into multiple smaller functions
 int server_process(const char address[], int port, const char stdinFIFOname[], const char stdoutFIFOname[], bool openOrder)
 {
+  // 1. Open stdin and stdout FIFOs
   if(!stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, openOrder)) return 1;
 
   info_print("Creating socket server");
 
+  // 2. Create server socket
   if(server_socket_create(&serverfd, address, port, 1))
   {
     info_print("Accepting client");
 
+    // 3. Accept socket client
     if(socket_accept(&sockfd, serverfd, address, port))
     {
       pthread_t stdinThread, stdoutThread;
 
+      // 4. Create stdin and stdout thread
       if(stdin_stdout_thread_create(&stdinThread, &stdoutThread))
       {
         stdin_stdout_thread_join(stdinThread, stdoutThread);
@@ -144,6 +193,7 @@ int server_process(const char address[], int port, const char stdinFIFOname[], c
   return 0;
 }
 
+// Refactore this function into multiple smaller functions
 int client_process(const char address[], int port, const char stdinFIFOname[], const char stdoutFIFOname[], bool openOrder)
 {
   if(!stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, openOrder)) return 1;
@@ -170,8 +220,8 @@ int main(int argc, char* argv[])
   char address[] = "";
   int port = 5555;
 
-  char stdinFIFOname[] = "stdin-fifo";
-  char stdoutFIFOname[] = "stdout-fifo";
+  char stdinFIFOname[] = "stdin";
+  char stdoutFIFOname[] = "stdout";
 
   bool openOrder = true;
   

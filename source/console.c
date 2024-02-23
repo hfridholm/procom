@@ -4,25 +4,47 @@
 #include <signal.h>
 #include <string.h>
 
-void signal_sigint_handler(int sig)
+void sigint_handler(int signum)
 {
   error_print("Keyboard interrupt");
 
-  exit(1);
+  exit(1); // Exits the program with status 1
 }
 
-void signal_sigpipe_handler(int sig)
+void sigpipe_handler(int signum)
 {
   error_print("Pipe has been broken");
 
-  exit(2);
+  exit(2); // Exits the program with status 2
+}
+
+void sigint_handler_setup(void)
+{
+  struct sigaction sigAction;
+
+  sigAction.sa_handler = sigint_handler;
+  sigAction.sa_flags = 0;
+  sigemptyset(&sigAction.sa_mask);
+
+  sigaction(SIGINT, &sigAction, NULL);
+}
+
+void sigpipe_handler_setup(void)
+{
+  struct sigaction sigAction;
+
+  sigAction.sa_handler = sigpipe_handler;
+  sigAction.sa_flags = 0;
+  sigemptyset(&sigAction.sa_mask);
+
+  sigaction(SIGPIPE, &sigAction, NULL);
 }
 
 void signals_handler_setup(void)
 {
-  signal(SIGINT, signal_sigint_handler); // Handles SIGINT
+  sigint_handler_setup();
 
-  signal(SIGPIPE, signal_sigpipe_handler); // Handles SIGPIPE
+  sigpipe_handler_setup();
 }
 
 int main(int argc, char* argv[])
@@ -40,5 +62,5 @@ int main(int argc, char* argv[])
   }
   error_print("Input pipe interrupted");
 
-  return 0;
+  return 0; // Exits the program with status 0
 }

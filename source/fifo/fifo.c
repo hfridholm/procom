@@ -87,6 +87,7 @@ bool stdin_stdout_fifo_open(int* stdinFIFO, const char stdinFIFOname[], int* std
   return true;
 }
 
+// Note: Close both
 bool stdin_stdout_fifo_close(int* stdinFIFO, int* stdoutFIFO)
 {
   if(!stdin_fifo_close(stdinFIFO)) return false;

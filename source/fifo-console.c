@@ -107,8 +107,8 @@ int main(int argc, char* argv[])
   }
   else 
   {
-    strcpy(stdinFIFOname, "stdin-fifo");
-    strcpy(stdoutFIFOname, "stdout-fifo");
+    strcpy(stdinFIFOname, "stdin");
+    strcpy(stdoutFIFOname, "stdout");
   }
 
   bool openOrder = true;
