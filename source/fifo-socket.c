@@ -79,35 +79,46 @@ void* stdin_routine(void* arg)
   return NULL;
 }
 
-bool stdin_stdout_thread_create(pthread_t* stdinThread, pthread_t* stdoutThread)
+/*
+ * Create stdin and stdout threads
+ *
+ * RETURN
+ * - 0 | Success!
+ * - 1 | Failed to create stdin thread
+ * - 2 | Failed to create stdout thread
+ */
+int stdin_stdout_thread_create(pthread_t* stdinThread, pthread_t* stdoutThread)
 {
   if(pthread_create(stdinThread, NULL, &stdin_routine, NULL) != 0)
   {
-    error_print("Could not create stdin thread");
+    error_print("Failed to create stdin thread");
 
-    return false;
+    return 1;
   }
   if(pthread_create(stdoutThread, NULL, &stdout_routine, NULL) != 0)
   {
-    error_print("Could not create stdout thread");
+    error_print("Failed to create stdout thread");
 
     // Interrupt stdin thread
     pthread_kill(*stdinThread, SIGUSR1);
 
-    return false;
+    return 2;
   }
-  return true;
+  return 0;
 }
 
+/*
+ * Join stdin and stdout threads
+ */
 void stdin_stdout_thread_join(pthread_t stdinThread, pthread_t stdoutThread)
 {
   if(pthread_join(stdinThread, NULL) != 0)
   {
-    error_print("Could not join stdin thread");
+    error_print("Failed to join stdin thread");
   }
   if(pthread_join(stdoutThread, NULL) != 0)
   {
-    error_print("Could not join stdout thread");
+    error_print("Failed to join stdout thread");
   }
 }
 
@@ -161,56 +172,114 @@ void signals_handler_setup(void)
   sigusr1_handler_setup();
 }
 
-// Refactore this function into multiple smaller functions
+/*
+ * Start stdin and stdout thread
+ *
+ * RETURN
+ * - 0 | Success!
+ * - 1 | Failed to create stdin and stdout threads
+ */
+int stdin_stdout_thread_start(pthread_t* stdinThread, pthread_t* stdoutThread)
+{
+  if(!stdin_stdout_thread_create(stdinThread, stdoutThread) != 0) return 1;
+  
+  stdin_stdout_thread_join(*stdinThread, *stdoutThread);
+
+  return 0;
+}
+
+/*
+ * Accept socket client
+ *
+ * RETURN
+ * - 0 | Success!
+ * - 1 | Failed to accept client socket
+ * - 2 | Failed to start stdin and stdout threads
+ */
+int server_process_step3(const char address[], int port)
+{
+  if(!socket_accept(&sockfd, serverfd, address, port)) return 1;
+
+  int status = stdin_stdout_thread_start(&stdinThread, &stdoutThread);
+
+  socket_close(&sockfd);
+
+  return (status != 0) ? 2 : 0;
+}
+
+/*
+ * Create server socket
+ *
+ * RETURN
+ * - 0 | Success!
+ * - 1 | Failed to create server socket
+ * - 2 | Failed server_process_step3
+ */
+int server_process_step2(const char address[], int port)
+{
+  if(!server_socket_create(&serverfd, address, port, 1)) return 1;
+
+  int status = server_process_step3(address, port);
+
+  socket_close(&serverfd);
+
+  return (status != 0) ? 2 : 0;
+}
+
+/*
+ * RETURN
+ * - 0 | Success!
+ * - 1 | Failed to open stdin and stdout FIFOs
+ * - 2 | Failed to close stdin and stdout FIFOs
+ * - 3 | Failed server_process_step2
+ */
 int server_process(const char address[], int port, const char stdinFIFOname[], const char stdoutFIFOname[], bool openOrder)
 {
   // 1. Open stdin and stdout FIFOs
   if(!stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, openOrder)) return 1;
 
-  info_print("Creating socket server");
+  int status = server_process_step2(address, port);
 
-  // 2. Create server socket
-  if(server_socket_create(&serverfd, address, port, 1))
-  {
-    info_print("Accepting client");
-
-    // 3. Accept socket client
-    if(socket_accept(&sockfd, serverfd, address, port))
-    {
-      pthread_t stdinThread, stdoutThread;
-
-      // 4. Create stdin and stdout thread
-      if(stdin_stdout_thread_create(&stdinThread, &stdoutThread))
-      {
-        stdin_stdout_thread_join(stdinThread, stdoutThread);
-      }
-      socket_close(&sockfd);
-    }
-    socket_close(&serverfd);
-  }
   if(!stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO)) return 2;
 
-  return 0;
+  return (status != 0) ? 3 : 0;
 }
 
-// Refactore this function into multiple smaller functions
+/*
+ * Create client socket
+ *
+ * RETURN
+ * - 0 | Success!
+ * - 1 | Failed to create client socket
+ * - 2 | Failed to start stdin and stdout threads
+ */
+int client_process_step2(const char address[], int port)
+{
+  if(!client_socket_create(&sockfd, address, port)) return 1;
+
+  int status = stdin_stdout_thread_start(&stdinThread, &stdoutThread);
+
+  socket_close(&sockfd);
+
+  return (status != 0) ? 2 : 0;
+}
+
+/*
+ * RETURN
+ * - 0 | Success!
+ * - 1 | Failed to open stdin and stdout FIFOs
+ * - 2 | Failed to close stdin and stdout FIFOs
+ * - 3 | Failed client_process_step2
+ */
 int client_process(const char address[], int port, const char stdinFIFOname[], const char stdoutFIFOname[], bool openOrder)
 {
   if(!stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, openOrder)) return 1;
 
-  info_print("Creating socket client");
+  int status = client_process_step2(address, port);
 
-  if(client_socket_create(&sockfd, address, port))
-  {
-    if(stdin_stdout_thread_create(&stdinThread, &stdoutThread))
-    {
-      stdin_stdout_thread_join(stdinThread, stdoutThread);
-    }
-    socket_close(&sockfd);
-  }
   if(!stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO)) return 2;
   
-  return 0;
+  return (status != 0) ? 3 : 0;
 }
 
 int main(int argc, char* argv[])
