@@ -181,7 +181,7 @@ void signals_handler_setup(void)
  */
 int stdin_stdout_thread_start(pthread_t* stdinThread, pthread_t* stdoutThread)
 {
-  if(!stdin_stdout_thread_create(stdinThread, stdoutThread) != 0) return 1;
+  if(stdin_stdout_thread_create(stdinThread, stdoutThread) != 0) return 1;
   
   stdin_stdout_thread_join(*stdinThread, *stdoutThread);
 
@@ -233,14 +233,13 @@ int server_process_step2(const char address[], int port)
  * - 2 | Failed to close stdin and stdout FIFOs
  * - 3 | Failed server_process_step2
  */
-int server_process(const char address[], int port, const char stdinFIFOname[], const char stdoutFIFOname[], bool openOrder)
+int server_process(const char address[], int port, const char stdinFIFOname[], const char stdoutFIFOname[], bool reversed)
 {
-  // 1. Open stdin and stdout FIFOs
-  if(!stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, openOrder)) return 1;
+  if(stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, reversed) != 0) return 1;
 
   int status = server_process_step2(address, port);
 
-  if(!stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO)) return 2;
+  if(stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO) != 0) return 2;
 
   return (status != 0) ? 3 : 0;
 }
@@ -271,13 +270,13 @@ int client_process_step2(const char address[], int port)
  * - 2 | Failed to close stdin and stdout FIFOs
  * - 3 | Failed client_process_step2
  */
-int client_process(const char address[], int port, const char stdinFIFOname[], const char stdoutFIFOname[], bool openOrder)
+int client_process(const char address[], int port, const char stdinFIFOname[], const char stdoutFIFOname[], bool reversed)
 {
-  if(!stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, openOrder)) return 1;
+  if(stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, reversed) != 0) return 1;
 
   int status = client_process_step2(address, port);
 
-  if(!stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO)) return 2;
+  if(stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO) != 0) return 2;
   
   return (status != 0) ? 3 : 0;
 }
@@ -292,11 +291,11 @@ int main(int argc, char* argv[])
   char stdinFIFOname[] = "stdin";
   char stdoutFIFOname[] = "stdout";
 
-  bool openOrder = true;
+  bool reversed = false;
   
   if(argc >= 2 && strcmp(argv[1], "server") == 0)
   {
-    return server_process(address, port, stdinFIFOname, stdoutFIFOname, openOrder);
+    return server_process(address, port, stdinFIFOname, stdoutFIFOname, reversed);
   }
-  else return client_process(address, port, stdinFIFOname, stdoutFIFOname, openOrder);
+  else return client_process(address, port, stdinFIFOname, stdoutFIFOname, reversed);
 }

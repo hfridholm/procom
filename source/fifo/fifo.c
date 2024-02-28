@@ -1,102 +1,168 @@
 #include "../fifo.h"
 
-bool stdin_fifo_open(int* stdinFIFO, const char stdinFIFOname[])
+/*
+ * RETURN
+ * - 0 | Success!
+ * - 1 | Failed to open stdin FIFO
+ */
+int stdin_fifo_open(int* stdinFIFO, const char stdinFIFOname[])
 {
-  info_print("Opening stdin-fifo");
+  info_print("Opening stdin FIFO");
 
-  *stdinFIFO = open(stdinFIFOname, O_WRONLY);
-
-  if(*stdinFIFO == -1)
+  if((*stdinFIFO = open(stdinFIFOname, O_WRONLY)) == -1)
   {
-    error_print("Could not open stdin-fifo");
+    error_print("Failed to open stdin FIFO");
     
-    return false;
+    return 1;
   }
-  return true;
+
+  info_print("Opened stdin FIFO");
+
+  return 0;
 }
 
-bool stdout_fifo_open(int* stdoutFIFO, const char stdoutFIFOname[])
+/*
+ * RETURN
+ * - 0 | Success!
+ * - 1 | Failed to open stdout FIFO
+ */
+int stdout_fifo_open(int* stdoutFIFO, const char stdoutFIFOname[])
 {
-  info_print("Opening stdout-fifo");
+  info_print("Opening stdout FIFO");
 
-  *stdoutFIFO = open(stdoutFIFOname, O_RDONLY);
-  
-  if(*stdoutFIFO == -1)
+  if((*stdoutFIFO = open(stdoutFIFOname, O_RDONLY)) == -1)
   {
-    error_print("Could not open stdout-fifo");
+    error_print("Failed to open stdout FIFO");
 
-    return false;
+    return 1;
   }
-  return true;
+  
+  info_print("Opened stdout FIFO");
+
+  return 0;
 }
 
-bool stdin_fifo_close(int* stdinFIFO)
+/*
+ * RETURN
+ * - 0 | Success!
+ * - 1 | Failed to close stdin FIFO
+ */
+int stdin_fifo_close(int* stdinFIFO)
 {
-  info_print("Closing stdin-fifo");
+  info_print("Closing stdin FIFO");
 
   if(close(*stdinFIFO) == -1)
   {
-    error_print("Could not close stdin-fifo: %s", strerror(errno));
+    error_print("Failed to close stdin FIFO: %s", strerror(errno));
 
-    return false;
+    return 1;
   }
   *stdinFIFO = -1;
 
-  return true;
+  info_print("Closed stdin FIFO");
+
+  return 0;
 }
 
+/*
+ * RETURN
+ * - 0 | Success!
+ * - 1 | Failed to close stdout FIFO
+ */
 bool stdout_fifo_close(int* stdoutFIFO)
 {
-  info_print("Closing stdout-fifo");
+  info_print("Closing stdout FIFO");
 
   if(close(*stdoutFIFO) == -1)
   {
-    error_print("Could not close stdout-fifo: %s", strerror(errno));
+    error_print("Failed to close stdout FIFO: %s", strerror(errno));
 
     return false;
   }
   *stdoutFIFO = -1;
 
+  info_print("Closed stdout FIFO");
+
   return true;
 }
 
-bool stdin_stdout_fifo_open(int* stdinFIFO, const char stdinFIFOname[], int* stdoutFIFO, const char stdoutFIFOname[], bool openOrder)
+/*
+ * PARAMS
+ * - bool reversed
+ *   - true  | First open stdin then stdout
+ *   - false | First open stdout then stdin
+ *
+ * RETURN
+ * [IMPORTANT] Same as stdin_stdout_fifo_open
+ *
+ * This is a very nice programming concept
+ * I have never seen it being used before
+ */
+int stdout_stdin_fifo_open(int* stdoutFIFO, const char stdoutFIFOname[], int* stdinFIFO, const char stdinFIFOname[], bool reversed)
 {
-  if(openOrder)
+  if(reversed) return stdin_stdout_fifo_open(stdinFIFO, stdinFIFOname, stdoutFIFO, stdoutFIFOname, !reversed);
+
+  if(stdout_fifo_open(stdoutFIFO, stdoutFIFOname) != 0) return 2;
+
+  if(stdin_fifo_open(stdinFIFO, stdinFIFOname) != 0)
   {
-    if(!stdin_fifo_open(stdinFIFO, stdinFIFOname)) return false;
+    stdout_fifo_close(stdoutFIFO);
 
-    if(!stdout_fifo_open(stdoutFIFO, stdoutFIFOname))
-    {
-      stdin_fifo_close(stdinFIFO);
-
-      return false;
-    }
+    return 1;
   }
-  else
-  {
-    if(!stdout_fifo_open(stdoutFIFO, stdoutFIFOname)) return false;
-
-    if(!stdin_fifo_open(stdinFIFO, stdinFIFOname))
-    {
-      stdout_fifo_close(stdoutFIFO);
-
-      return false;
-    }
-  }
-  return true;
+  return 0;
 }
 
-// Note: Close both
-bool stdin_stdout_fifo_close(int* stdinFIFO, int* stdoutFIFO)
+/*
+ * PARAMS
+ * - bool reversed
+ *   - true  | First open stdout then stdin
+ *   - false | First open stdin then stdout
+ *
+ * RETURN
+ * - 0 | Success!
+ * - 1 | Failed to open stdin FIFO
+ * - 2 | Failed to open stdout FIFO
+ */
+int stdin_stdout_fifo_open(int* stdinFIFO, const char stdinFIFOname[], int* stdoutFIFO, const char stdoutFIFOname[], bool reversed)
 {
-  if(!stdin_fifo_close(stdinFIFO)) return false;
+  if(reversed) return stdout_stdin_fifo_open(stdoutFIFO, stdoutFIFOname, stdinFIFO, stdinFIFOname, !reversed);
 
-  if(!stdout_fifo_close(stdoutFIFO)) return false;
+  if(stdin_fifo_open(stdinFIFO, stdinFIFOname) != 0) return 1;
 
-  return true;
+  if(stdout_fifo_open(stdoutFIFO, stdoutFIFOname) != 0)
+  {
+    stdin_fifo_close(stdinFIFO);
+
+    return 2;
+  }
+  return 0;
 }
 
+/*
+ * RETURN
+ * - 0 | Success!
+ * - 1 | Failed to close stdin FIFO
+ * - 2 | Failed to close stdout FIFO
+ *
+ * Designed to close stdout even if stdin fails
+ */
+int stdin_stdout_fifo_close(int* stdinFIFO, int* stdoutFIFO)
+{
+  int status = 0;
+
+  status = (stdin_fifo_close(stdinFIFO) == 0) ? status : 1;
+
+  status = (stdout_fifo_close(stdoutFIFO) == 0) ? status : 2;
+
+  return status;
+}
+
+/*
+ * RETURN
+ * - length | Success! The length of the read buffer
+ * - -1     | Failed to read buffer
+ */
 int buffer_read(int fd, char* buffer, size_t size)
 {
   char symbol = '\0';
@@ -115,6 +181,11 @@ int buffer_read(int fd, char* buffer, size_t size)
   return index;
 }
 
+/*
+ * RETURN
+ * - length | Success! The length of the written buffer
+ * - -1     | Failed to write to buffer
+ */
 int buffer_write(int fd, const char* buffer, size_t size)
 {
   int index;
