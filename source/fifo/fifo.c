@@ -49,6 +49,9 @@ int stdout_fifo_open(int* stdoutFIFO, const char stdoutFIFOname[])
  */
 int stdin_fifo_close(int* stdinFIFO)
 {
+  // No need to close an already closed FIFO
+  if(*stdinFIFO == -1) return 0;
+
   info_print("Closing stdin FIFO");
 
   if(close(*stdinFIFO) == -1)
@@ -71,6 +74,9 @@ int stdin_fifo_close(int* stdinFIFO)
  */
 bool stdout_fifo_close(int* stdoutFIFO)
 {
+  // No need to close an already closed FIFO
+  if(*stdoutFIFO == -1) return 0;
+
   info_print("Closing stdout FIFO");
 
   if(close(*stdoutFIFO) == -1)
