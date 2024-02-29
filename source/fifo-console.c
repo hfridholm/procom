@@ -38,14 +38,14 @@ void* stdout_routine(void* arg)
   }
   if(debug) info_print("Stopped fifo -> stdout");
 
-  // If stdout thread has interrupted stdin thread
+  // If stdin thread has interrupted stdout thread
   if(status == -1 && errno == EINTR)
   {
     if(debug) info_print("stdin routine interrupted"); 
   }
 
-  // Interrupt stdout thread
-  pthread_kill(stdoutThread, SIGUSR1);
+  // Interrupt stdin thread
+  pthread_kill(stdinThread, SIGUSR1);
 
   return NULL;
 }
@@ -77,17 +77,15 @@ void* stdin_routine(void* arg)
   return NULL;
 }
 
-// This is executed when the user interrupts the program
-// - interrupt and stop the threads
-// - close stdin and stdout FIFOs
-// - exit the program
+/*
+ * Keyboard interrupt - close the program (the threads)
+ */
 void sigint_handler(int signum)
 {
   if(debug) info_print("Keyboard interrupt");
 
-  stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO, debug);
-
-  exit(1); // Exits the program with status 1
+  pthread_kill(stdinThread, SIGUSR1);
+  pthread_kill(stdoutThread, SIGUSR1);
 }
 
 void sigint_handler_setup(void)

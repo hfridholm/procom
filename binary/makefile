@@ -1,3 +1,11 @@
+# These are the names of the targets
+CLEAN_TARGET := clean
+HELP_TARGET := help
+
+# These are the flags and command for the clean target
+DELETE_FLAGS :=
+DELETE_CMD := rm
+
 # This is the compiler and the compile flags you want to use
 COMPILER := gcc
 COMPILE_FLAGS := -Wall -Werror -g -Og -std=gnu99 -oFast
@@ -37,7 +45,7 @@ THREAD_OBJECT_FILES := $(addprefix $(OBJECT_DIR)/, $(notdir $(THREAD_SOURCE_FILE
 
 THREAD_LINKER_FLAGS := -pthread
 
-default: socket-console fifo-socket fifo-console console
+all: socket-console fifo-socket fifo-console console
 
 # These are rules for compiling the executable programs
 socket-console: %: $(OBJECT_DIR)/%.o $(SOCKET_OBJECT_FILES) $(THREAD_OBJECT_FILES) $(DEBUG_OBJECT_FILES) $(SOURCE_DIR)/%.c $(SOCKET_SOURCE_FILES) $(THREAD_SOURCE_FILES) $(DEBUG_SOURCE_FILES)
@@ -62,16 +70,14 @@ $(OBJECT_DIR)/%.o: $(SOURCE_DIR)/%.c
 # These are the executable programs that you can create
 PROGRAMS := $(patsubst %.c, %, $(notdir $(wildcard $(SOURCE_DIR)/*.c)))
 
-# These are the files that should be kept (not automatically deleted)
-.PRECIOUS: $(OBJECT_DIR)/*.o $(PROGRAMS)
-
-# This is the clean target, along with which files to delete and how to delete them
-CLEAN_TARGET := clean
-
-DELETE_FLAGS :=
-DELETE_COMMAND := rm
-
+# These are the files that should be cleaned
 DELETE_FILES := $(OBJECT_DIR)/*.o $(PROGRAMS)
 
+# These are the files that should be kept (not automatically deleted)
+.PRECIOUS: $(DELETE_FILES)
+
 $(CLEAN_TARGET):
-	$(DELETE_COMMAND) $(DELETE_FLAGS) $(DELETE_FILES)
+	$(DELETE_CMD) $(DELETE_FLAGS) $(DELETE_FILES)
+
+$(HELP_TARGET):
+	@echo $(PROGRAMS) $(CLEAN_TARGET)

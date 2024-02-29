@@ -74,18 +74,15 @@ void* stdin_routine(void* arg)
   return NULL;
 }
 
-// This is executed when the user interrupts the program
-// - interrupt and stop the threads
-// - close sock and server sockets
-// - exit the program
+/*
+ * Keyboard interrupt - close the program (the threads)
+ */
 void sigint_handler(int signum)
 {
   if(debug) info_print("Keyboard interrupt");
 
-  socket_close(&sockfd, debug);
-  socket_close(&serverfd, debug);
-
-  exit(1); // Exits the program with status 1
+  pthread_kill(stdinThread, SIGUSR1);
+  pthread_kill(stdoutThread, SIGUSR1);
 }
 
 void sigint_handler_setup(void)
@@ -225,7 +222,7 @@ int main(int argc, char* argv[])
 
   signals_handler_setup();
 
-  if(argc >= 2 && strcmp(argv[1], "server") == 0)
+  if(argc >= 2 && !strcmp(argv[1], "server"))
   {
     return server_process();
   }
