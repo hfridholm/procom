@@ -17,6 +17,8 @@ int sockfd = -1;
 int stdinFIFO = -1;
 int stdoutFIFO = -1;
 
+bool debug = false;
+
 void* stdout_routine(void* arg)
 {
   info_print("Redirecting socket -> fifo");
@@ -133,8 +135,8 @@ void sigint_handler(int signum)
 
   stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO);
 
-  socket_close(&sockfd);
-  socket_close(&serverfd);
+  socket_close(&sockfd, debug);
+  socket_close(&serverfd, debug);
 
   exit(1); // Exits the program with status 1
 }
@@ -198,13 +200,13 @@ int stdin_stdout_thread_start(pthread_t* stdinThread, pthread_t* stdoutThread)
  */
 int server_process_step3(const char address[], int port)
 {
-  sockfd = socket_accept(serverfd, address, port);
+  sockfd = socket_accept(serverfd, address, port, debug);
 
   if(sockfd == -1) return 1;
 
   int status = stdin_stdout_thread_start(&stdinThread, &stdoutThread);
 
-  socket_close(&sockfd);
+  socket_close(&sockfd, debug);
 
   return (status != 0) ? 2 : 0;
 }
@@ -219,13 +221,13 @@ int server_process_step3(const char address[], int port)
  */
 int server_process_step2(const char address[], int port)
 {
-  serverfd = server_socket_create(address, port, 1);
+  serverfd = server_socket_create(address, port, 1, debug);
 
   if(serverfd == -1) return 1;
 
   int status = server_process_step3(address, port);
 
-  socket_close(&serverfd);
+  socket_close(&serverfd, debug);
 
   return (status != 0) ? 2 : 0;
 }
@@ -258,13 +260,13 @@ int server_process(const char address[], int port, const char stdinFIFOname[], c
  */
 int client_process_step2(const char address[], int port)
 {
-  sockfd = client_socket_create(address, port);
+  sockfd = client_socket_create(address, port, debug);
 
   if(sockfd == -1) return 1;
 
   int status = stdin_stdout_thread_start(&stdinThread, &stdoutThread);
 
-  socket_close(&sockfd);
+  socket_close(&sockfd, debug);
 
   return (status != 0) ? 2 : 0;
 }

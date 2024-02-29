@@ -3,10 +3,13 @@
 /*
  * Create sockaddr from an address and a port
  *
+ * PARAMS
+ * - bool debug | Output debug messages or not
+ *
  * RETURN
  * - struct sockaddr_in addr | The created sockaddr
  */
-struct sockaddr_in sockaddr_create(int sockfd, const char address[], int port)
+struct sockaddr_in sockaddr_create(int sockfd, const char address[], int port, bool debug)
 {
   struct sockaddr_in addr;
 
@@ -16,7 +19,7 @@ struct sockaddr_in sockaddr_create(int sockfd, const char address[], int port)
 
     if(getsockname(sockfd, (struct sockaddr*) &addr, &addrlen) == -1)
     {
-      error_print("Failed to get sock name: %s", strerror(errno));
+      if(debug) error_print("Failed to get sock name: %s", strerror(errno));
     }
   }
   else addr.sin_addr.s_addr = inet_addr(address);
@@ -34,20 +37,20 @@ struct sockaddr_in sockaddr_create(int sockfd, const char address[], int port)
  * - 0  | Success!
  * - -1 | Failed to bind socket
  */
-int socket_bind(int sockfd, const char address[], int port)
+int socket_bind(int sockfd, const char address[], int port, bool debug)
 {
-  struct sockaddr_in addr = sockaddr_create(sockfd, address, port);
+  struct sockaddr_in addr = sockaddr_create(sockfd, address, port, debug);
 
-  info_print("Binding socket");
+  if(debug) info_print("Binding socket");
 
   if(bind(sockfd, (struct sockaddr*) &addr, sizeof(addr)) == -1)
   {
-    error_print("Failed to bind socket: %s", strerror(errno));
+    if(debug) error_print("Failed to bind socket: %s", strerror(errno));
 
     return -1;
   }
   
-  info_print("Binded socket");
+  if(debug) info_print("Binded socket");
 
   return 0;
 }
@@ -59,18 +62,18 @@ int socket_bind(int sockfd, const char address[], int port)
  * - 0  | Success!
  * - -1 | Failed to listen to socket
  */
-int socket_listen(int sockfd, int backlog)
+int socket_listen(int sockfd, int backlog, bool debug)
 {
-  info_print("Start listen to socket");
+  if(debug) info_print("Start listen to socket");
 
   if(listen(sockfd, backlog) == -1)
   {
-    error_print("Failed to listen to socket: %s", strerror(errno));
+    if(debug) error_print("Failed to listen to socket: %s", strerror(errno));
 
     return -1;
   }
 
-  info_print("Listening to socket");
+  if(debug) info_print("Listening to socket");
 
   return 0;
 }
@@ -82,20 +85,20 @@ int socket_listen(int sockfd, int backlog)
  * - SUCCESS | File descriptor of created socket
  * - ERROR   | -1
  */
-int socket_create(void)
+int socket_create(bool debug)
 {
-  info_print("Creating socket");
+  if(debug) info_print("Creating socket");
 
   int sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
   if(sockfd == -1)
   {
-    error_print("Failed to create socket: %s", strerror(errno));
+    if(debug) error_print("Failed to create socket: %s", strerror(errno));
 
     return -1;
   }
 
-  info_print("Created socket (%d)", sockfd);
+  if(debug) info_print("Created socket (%d)", sockfd);
 
   return sockfd;
 }
@@ -107,15 +110,15 @@ int socket_create(void)
  * - SUCCESS | File descriptor of created server socket
  * - ERROR   | -1
  */
-int server_socket_create(const char address[], int port, int backlog)
+int server_socket_create(const char address[], int port, int backlog, bool debug)
 {
-  int sockfd = socket_create();
+  int sockfd = socket_create(debug);
 
   if(sockfd == -1) return -1;
 
-  if(socket_bind(sockfd, address, port) == -1 || socket_listen(sockfd, backlog) == -1)
+  if(socket_bind(sockfd, address, port, debug) == -1 || socket_listen(sockfd, backlog, debug) == -1)
   {
-    socket_close(&sockfd);
+    socket_close(&sockfd, debug);
 
     return -1;
   }
@@ -129,20 +132,20 @@ int server_socket_create(const char address[], int port, int backlog)
  * - 0  | Success!
  * - -1 | Failed to connect to server socket
  */
-int socket_connect(int sockfd, const char address[], int port)
+int socket_connect(int sockfd, const char address[], int port, bool debug)
 {
-  struct sockaddr_in addr = sockaddr_create(sockfd, address, port);
+  struct sockaddr_in addr = sockaddr_create(sockfd, address, port, debug);
 
-  info_print("Connecting socket");
+  if(debug) info_print("Connecting socket");
 
   if(connect(sockfd, (struct sockaddr*) &addr, sizeof(addr)) == -1)
   {
-    error_print("Failed to connect socket: %s", strerror(errno));
+    if(debug) error_print("Failed to connect socket: %s", strerror(errno));
 
     return -1;
   }
 
-  info_print("Connected socket");
+  if(debug) info_print("Connected socket");
 
   return 0;
 }
@@ -154,15 +157,15 @@ int socket_connect(int sockfd, const char address[], int port)
  * - SUCCESS | File descriptor of created client socket
  * - ERROR   | -1
  */
-int client_socket_create(const char address[], int port)
+int client_socket_create(const char address[], int port, bool debug)
 {
-  int sockfd = socket_create();
+  int sockfd = socket_create(debug);
 
   if(sockfd == -1) return -1;
 
-  if(socket_connect(sockfd, address, port) == -1)
+  if(socket_connect(sockfd, address, port, debug) == -1)
   {
-    socket_close(&sockfd);
+    socket_close(&sockfd, debug);
 
     return -1;
   }
@@ -176,24 +179,24 @@ int client_socket_create(const char address[], int port)
  * - SUCCESS | File descriptor to accepted socket
  * - ERROR   | -1
  */
-int socket_accept(int sockfd, const char address[], int port)
+int socket_accept(int sockfd, const char address[], int port, bool debug)
 {
-  struct sockaddr_in sockaddr = sockaddr_create(sockfd, address, port);
+  struct sockaddr_in sockaddr = sockaddr_create(sockfd, address, port, debug);
 
   int addrlen = sizeof(sockaddr);
 
-  info_print("Accepting socket");
+  if(debug) info_print("Accepting socket");
 
   int acceptfd = accept(sockfd, (struct sockaddr*) &sockaddr, (socklen_t*) &addrlen);
 
   if(acceptfd == -1)
   {
-    error_print("Failed to accept socket: %s", strerror(errno));
+    if(debug) error_print("Failed to accept socket: %s", strerror(errno));
 
     return -1;
   }
 
-  info_print("Accepted socket (%d)", acceptfd);
+  if(debug) info_print("Accepted socket (%d)", acceptfd);
 
   return acceptfd;
 }
@@ -205,22 +208,22 @@ int socket_accept(int sockfd, const char address[], int port)
  * - 0 | Success!
  * - 1 | Failed to close socket
  */
-int socket_close(int* sockfd)
+int socket_close(int* sockfd, bool debug)
 {
   // No need to close an already closed socket
   if(*sockfd == -1) return 0;
 
-  info_print("Closing socket (%d)", *sockfd);
+  if(debug) info_print("Closing socket (%d)", *sockfd);
 
   if(close(*sockfd) == -1)
   {
-    error_print("Failed to close socket: %s", strerror(errno));
+    if(debug) error_print("Failed to close socket: %s", strerror(errno));
 
     return -1;
   }
   *sockfd = -1;
 
-  info_print("Closed socket");
+  if(debug) info_print("Closed socket");
 
   return 0;
 }

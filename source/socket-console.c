@@ -11,9 +11,11 @@ pthread_t stdoutThread;
 int serverfd = -1;
 int sockfd = -1;
 
+bool debug = false;
+
 void* stdout_routine(void* arg)
 {
-  info_print("Redirecting socket -> stdout");
+  if(debug) info_print("Redirecting socket -> stdout");
 
   char buffer[1024];
   memset(buffer, '\0', sizeof(buffer));
@@ -26,12 +28,12 @@ void* stdout_routine(void* arg)
 
     memset(buffer, '\0', sizeof(buffer));
   }
-  info_print("Stopped socket -> stdout");
+  if(debug) info_print("Stopped socket -> stdout");
 
   // If stdin thread has interrupted stdout thread
   if(status == -1 && errno == EINTR)
   {
-    info_print("stdout routine interrupted"); 
+    if(debug) info_print("stdout routine interrupted"); 
   }
 
   // Interrupt stdin thread
@@ -42,7 +44,7 @@ void* stdout_routine(void* arg)
 
 void* stdin_routine(void* arg)
 {
-  info_print("Redirecting stdin -> socket");
+  if(debug) info_print("Redirecting stdin -> socket");
 
   char buffer[1024];
   memset(buffer, '\0', sizeof(buffer));
@@ -53,12 +55,12 @@ void* stdin_routine(void* arg)
   
     memset(buffer, '\0', sizeof(buffer));
   }
-  info_print("Stopped stdin -> socket");
+  if(debug) info_print("Stopped stdin -> socket");
 
   // If stdout thread has interrupted stdin thread
   if(errno == EINTR)
   {
-    info_print("stdin routine interrupted"); 
+    if(debug) info_print("stdin routine interrupted"); 
   }
 
   // Interrupt stdout thread
@@ -79,13 +81,13 @@ int stdin_stdout_thread_create(pthread_t* stdinThread, pthread_t* stdoutThread)
 {
   if(pthread_create(stdinThread, NULL, &stdin_routine, NULL) != 0)
   {
-    error_print("Failed to create stdin thread");
+    if(debug) error_print("Failed to create stdin thread");
 
     return 1;
   }
   if(pthread_create(stdoutThread, NULL, &stdout_routine, NULL) != 0)
   {
-    error_print("Failed to create stdout thread");
+    if(debug) error_print("Failed to create stdout thread");
 
     // Interrupt stdin thread
     pthread_kill(*stdinThread, SIGUSR1);
@@ -102,11 +104,11 @@ void stdin_stdout_thread_join(pthread_t stdinThread, pthread_t stdoutThread)
 {
   if(pthread_join(stdinThread, NULL) != 0)
   {
-    error_print("Failed to join stdin thread");
+    if(debug) error_print("Failed to join stdin thread");
   }
   if(pthread_join(stdoutThread, NULL) != 0)
   {
-    error_print("Failed to join stdout thread");
+    if(debug) error_print("Failed to join stdout thread");
   }
 }
 
@@ -116,10 +118,10 @@ void stdin_stdout_thread_join(pthread_t stdinThread, pthread_t stdoutThread)
 // - exit the program
 void sigint_handler(int signum)
 {
-  info_print("Keyboard interrupt");
+  if(debug) info_print("Keyboard interrupt");
 
-  socket_close(&sockfd);
-  socket_close(&serverfd);
+  socket_close(&sockfd, debug);
+  socket_close(&serverfd, debug);
 
   exit(1); // Exits the program with status 1
 }
@@ -183,13 +185,13 @@ int stdin_stdout_thread_start(pthread_t* stdinThread, pthread_t* stdoutThread)
  */
 int server_process_step2(const char address[], int port)
 {
-  sockfd = socket_accept(serverfd, address, port);
+  sockfd = socket_accept(serverfd, address, port, debug);
 
   if(sockfd == -1) return 1;
 
   int status = stdin_stdout_thread_start(&stdinThread, &stdoutThread);
 
-  socket_close(&sockfd);
+  socket_close(&sockfd, debug);
 
   return (status != 0) ? 2 : 0;
 }
@@ -204,13 +206,13 @@ int server_process_step2(const char address[], int port)
  */
 int server_process(const char address[], int port)
 {
-  serverfd = server_socket_create(address, port, 1);
+  serverfd = server_socket_create(address, port, 1, debug);
 
   if(serverfd == -1) return 1;
 
   int status = server_process_step2(address, port);
 
-  socket_close(&serverfd);
+  socket_close(&serverfd, debug);
 
   return (status != 0) ? 2 : 0;
 }
@@ -225,13 +227,13 @@ int server_process(const char address[], int port)
  */
 int client_process(const char address[], int port)
 {
-  sockfd = client_socket_create(address, port);
+  sockfd = client_socket_create(address, port, debug);
 
   if(sockfd == -1) return 1;
 
   int status = stdin_stdout_thread_start(&stdinThread, &stdoutThread);
 
-  socket_close(&sockfd);
+  socket_close(&sockfd, debug);
 
   return (status != 0) ? 2 : 0;
 }
@@ -242,6 +244,8 @@ int main(int argc, char* argv[])
 
   char address[] = "127.0.0.1";
   int port = 5555;
+
+  debug = true;
   
   if(argc >= 2 && strcmp(argv[1], "server") == 0)
   {
