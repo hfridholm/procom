@@ -1,5 +1,11 @@
 #include "../socket.h"
 
+/*
+ * Create sockaddr from an address and a port
+ *
+ * RETURN
+ * - struct sockaddr_in addr | The created sockaddr
+ */
 struct sockaddr_in sockaddr_create(int sockfd, const char address[], int port)
 {
   struct sockaddr_in addr;
@@ -10,7 +16,7 @@ struct sockaddr_in sockaddr_create(int sockfd, const char address[], int port)
 
     if(getsockname(sockfd, (struct sockaddr*) &addr, &addrlen) == -1)
     {
-      error_print("Could not get sock name: %s", strerror(errno));
+      error_print("Failed to get sock name: %s", strerror(errno));
     }
   }
   else addr.sin_addr.s_addr = inet_addr(address);
@@ -21,112 +27,211 @@ struct sockaddr_in sockaddr_create(int sockfd, const char address[], int port)
   return addr;
 }
 
-bool socket_bind(int sockfd, const char address[], int port)
+/*
+ * bind, with debug messages
+ *
+ * RETURN (same as bind)
+ * - 0  | Success!
+ * - -1 | Failed to bind socket
+ */
+int socket_bind(int sockfd, const char address[], int port)
 {
   struct sockaddr_in addr = sockaddr_create(sockfd, address, port);
+
+  info_print("Binding socket");
 
   if(bind(sockfd, (struct sockaddr*) &addr, sizeof(addr)) == -1)
   {
-    error_print("Could not bind socket: %s", strerror(errno));
+    error_print("Failed to bind socket: %s", strerror(errno));
 
-    return false;
+    return -1;
   }
-  return true;
+  
+  info_print("Binded socket");
+
+  return 0;
 }
 
-bool socket_listen(int sockfd, int backlog)
+/*
+ * listen, with debug messages
+ *
+ * RETURN (same as listen)
+ * - 0  | Success!
+ * - -1 | Failed to listen to socket
+ */
+int socket_listen(int sockfd, int backlog)
 {
+  info_print("Start listen to socket");
+
   if(listen(sockfd, backlog) == -1)
   {
-    error_print("Could not listen: %s", strerror(errno));
+    error_print("Failed to listen to socket: %s", strerror(errno));
 
-    return false;
+    return -1;
   }
-  return true;
+
+  info_print("Listening to socket");
+
+  return 0;
 }
 
-bool socket_create(int* sockfd)
+/*
+ * socket, with debug messages
+ *
+ * RETURN (same as socket)
+ * - SUCCESS | File descriptor of created socket
+ * - ERROR   | -1
+ */
+int socket_create(void)
 {
-  if((*sockfd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
-  {
-    error_print("Could not create socket: %s", strerror(errno));
+  info_print("Creating socket");
 
-    return false;
+  int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+
+  if(sockfd == -1)
+  {
+    error_print("Failed to create socket: %s", strerror(errno));
+
+    return -1;
   }
-  return true;
+
+  info_print("Created socket (%d)", sockfd);
+
+  return sockfd;
 }
 
-bool server_socket_create(int* sockfd, const char address[], int port, int backlog)
+/*
+ * Create a server socket, bind it and start listening for clients
+ *
+ * RETURN (same as socket)
+ * - SUCCESS | File descriptor of created server socket
+ * - ERROR   | -1
+ */
+int server_socket_create(const char address[], int port, int backlog)
 {
-  if(!socket_create(sockfd)) return false;
+  int sockfd = socket_create();
 
-  if(!socket_bind(*sockfd, address, port) || !socket_listen(*sockfd, backlog))
+  if(sockfd == -1) return -1;
+
+  if(socket_bind(sockfd, address, port) == -1 || socket_listen(sockfd, backlog) == -1)
   {
-    close(*sockfd);
+    socket_close(&sockfd);
 
-    return false;
+    return -1;
   }
-  return true;
+  return sockfd;
 }
 
-bool socket_connect(int sockfd, const char address[], int port)
+/*
+ * connect, with debug messages
+ *
+ * RETURN (same as connect)
+ * - 0  | Success!
+ * - -1 | Failed to connect to server socket
+ */
+int socket_connect(int sockfd, const char address[], int port)
 {
   struct sockaddr_in addr = sockaddr_create(sockfd, address, port);
 
+  info_print("Connecting socket");
+
   if(connect(sockfd, (struct sockaddr*) &addr, sizeof(addr)) == -1)
   {
-    error_print("Could not connect: %s", strerror(errno));
+    error_print("Failed to connect socket: %s", strerror(errno));
 
-    return false;
+    return -1;
   }
-  return true;
+
+  info_print("Connected socket");
+
+  return 0;
 }
 
-bool client_socket_create(int* sockfd, const char address[], int port)
+/*
+ * Create a client socket and connect it to the server socket
+ *
+ * RETURN (same as socket)
+ * - SUCCESS | File descriptor of created client socket
+ * - ERROR   | -1
+ */
+int client_socket_create(const char address[], int port)
 {
-  if(!socket_create(sockfd)) return false;
+  int sockfd = socket_create();
 
-  if(!socket_connect(*sockfd, address, port))
+  if(sockfd == -1) return -1;
+
+  if(socket_connect(sockfd, address, port) == -1)
   {
-    close(*sockfd);
+    socket_close(&sockfd);
 
-    return false;
+    return -1;
   }
-  return true;
+  return sockfd;
 }
 
-bool socket_accept(int* acceptfd, int sockfd, const char address[], int port)
+/*
+ * accept, but with address and port, and with debug messages
+ *
+ * RETURN (same as accept)
+ * - SUCCESS | File descriptor to accepted socket
+ * - ERROR   | -1
+ */
+int socket_accept(int sockfd, const char address[], int port)
 {
   struct sockaddr_in sockaddr = sockaddr_create(sockfd, address, port);
 
   int addrlen = sizeof(sockaddr);
 
-  if((*acceptfd = accept(sockfd, (struct sockaddr*) &sockaddr, (socklen_t*) &addrlen)) == -1)
-  {
-    error_print("Could not accept: %s", strerror(errno));
+  info_print("Accepting socket");
 
-    return false;
+  int acceptfd = accept(sockfd, (struct sockaddr*) &sockaddr, (socklen_t*) &addrlen);
+
+  if(acceptfd == -1)
+  {
+    error_print("Failed to accept socket: %s", strerror(errno));
+
+    return -1;
   }
-  return true;
+
+  info_print("Accepted socket (%d)", acceptfd);
+
+  return acceptfd;
 }
 
-bool socket_close(int* sockfd)
+/*
+ * close, but with pointer to file descriptor, and with debug messages
+ *
+ * RETURN (same as close)
+ * - 0 | Success!
+ * - 1 | Failed to close socket
+ */
+int socket_close(int* sockfd)
 {
-  if(*sockfd == -1) return true;
+  // No need to close an already closed socket
+  if(*sockfd == -1) return 0;
 
-  info_print("Closing socket");
+  info_print("Closing socket (%d)", *sockfd);
 
   if(close(*sockfd) == -1)
   {
-    error_print("Could not close socket: %s", strerror(errno));
+    error_print("Failed to close socket: %s", strerror(errno));
 
-    return false;
+    return -1;
   }
   *sockfd = -1;
 
-  return true;
+  info_print("Closed socket");
+
+  return 0;
 }
 
+/*
+ * Read a single line to a buffer from a socket connection
+ *
+ * RETURN
+ * - SUCCESS | The number of read characters
+ * - ERROR   | -1
+ */
 int socket_read(int sockfd, char* buffer, size_t size)
 {
   char symbol = '\0';
@@ -145,6 +250,13 @@ int socket_read(int sockfd, char* buffer, size_t size)
   return index;
 }
 
+/*
+ * Write a single line from a buffer to a socket connection
+ *
+ * RETURN
+ * - SUCCESS | The number of written characters
+ * - ERROR   | -1
+ */
 int socket_write(int sockfd, const char* buffer, size_t size)
 {
   int index;
@@ -156,10 +268,9 @@ int socket_write(int sockfd, const char* buffer, size_t size)
 
     int status = send(sockfd, &symbol, 1, 0);
 
-    if(status == -1) return -1;
-    if(status == 0) break;
+    if(status == -1) return -1; // ERROR
 
-    if(symbol == '\0' || symbol == '\n') break;
+    if(status == 0 || symbol == '\0' || symbol == '\n') break; // END OF FILE
   }
   return index;
 }

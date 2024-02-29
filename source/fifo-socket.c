@@ -198,7 +198,9 @@ int stdin_stdout_thread_start(pthread_t* stdinThread, pthread_t* stdoutThread)
  */
 int server_process_step3(const char address[], int port)
 {
-  if(!socket_accept(&sockfd, serverfd, address, port)) return 1;
+  sockfd = socket_accept(serverfd, address, port);
+
+  if(sockfd == -1) return 1;
 
   int status = stdin_stdout_thread_start(&stdinThread, &stdoutThread);
 
@@ -217,7 +219,9 @@ int server_process_step3(const char address[], int port)
  */
 int server_process_step2(const char address[], int port)
 {
-  if(!server_socket_create(&serverfd, address, port, 1)) return 1;
+  serverfd = server_socket_create(address, port, 1);
+
+  if(serverfd == -1) return 1;
 
   int status = server_process_step3(address, port);
 
@@ -254,7 +258,9 @@ int server_process(const char address[], int port, const char stdinFIFOname[], c
  */
 int client_process_step2(const char address[], int port)
 {
-  if(!client_socket_create(&sockfd, address, port)) return 1;
+  sockfd = client_socket_create(address, port);
+
+  if(sockfd == -1) return 1;
 
   int status = stdin_stdout_thread_start(&stdinThread, &stdoutThread);
 

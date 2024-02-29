@@ -210,7 +210,7 @@ int error_print(const char* format, ...)
 
   va_start(args, format);
 
-  int status = debug_args_print(stderr, "ERROR", format, args);
+  int status = debug_args_print(stderr, "\e[1;31mERROR\e[0m", format, args);
 
   va_end(args);
 
@@ -230,7 +230,7 @@ int info_print(const char* format, ...)
 
   va_start(args, format);
 
-  int status = debug_args_print(stdout, "INFO", format, args);
+  int status = debug_args_print(stdout, "\e[1;37mINFO \e[0m", format, args);
 
   va_end(args);
 
