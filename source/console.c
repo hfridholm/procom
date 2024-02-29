@@ -6,7 +6,7 @@
 
 void sigint_handler(int signum)
 {
-  error_print("Keyboard interrupt");
+  info_print("Keyboard interrupt");
 
   exit(1); // Exits the program with status 1
 }
@@ -60,7 +60,7 @@ int main(int argc, char* argv[])
     
     memset(buffer, '\0', sizeof(buffer));
   }
-  error_print("Input pipe interrupted");
+  info_print("Input pipe interrupted");
 
   return 0; // Exits the program with status 0
 }
