@@ -4,16 +4,18 @@
 #include <signal.h>
 #include <string.h>
 
+bool debug = false;
+
 void sigint_handler(int signum)
 {
-  info_print("Keyboard interrupt");
+  if(debug) info_print("Keyboard interrupt");
 
   exit(1); // Exits the program with status 1
 }
 
 void sigpipe_handler(int signum)
 {
-  error_print("Pipe has been broken");
+  if(debug) error_print("Pipe has been broken");
 
   exit(2); // Exits the program with status 2
 }
@@ -51,6 +53,8 @@ int main(int argc, char* argv[])
 {
   signals_handler_setup();
 
+  debug = true;
+
   char buffer[1024];
   memset(buffer, '\0', sizeof(buffer));
 
@@ -60,7 +64,7 @@ int main(int argc, char* argv[])
     
     memset(buffer, '\0', sizeof(buffer));
   }
-  info_print("Input pipe interrupted");
+  if(debug) info_print("Input pipe interrupted");
 
   return 0; // Exits the program with status 0
 }

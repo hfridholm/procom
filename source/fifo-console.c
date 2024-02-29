@@ -17,7 +17,7 @@ bool debug = false;
 
 void* stdout_routine(void* arg)
 {
-  info_print("Redirecting fifo -> stdout");
+  if(debug) info_print("Redirecting fifo -> stdout");
 
   char buffer[1024];
   memset(buffer, '\0', sizeof(buffer));
@@ -30,12 +30,12 @@ void* stdout_routine(void* arg)
 
     memset(buffer, '\0', sizeof(buffer));
   }
-  info_print("Stopped fifo -> stdout");
+  if(debug) info_print("Stopped fifo -> stdout");
 
   // If stdout thread has interrupted stdin thread
   if(status == -1 && errno == EINTR)
   {
-    info_print("stdin routine interrupted"); 
+    if(debug) info_print("stdin routine interrupted"); 
   }
 
   // Interrupt stdout thread
@@ -46,7 +46,7 @@ void* stdout_routine(void* arg)
 
 void* stdin_routine(void* arg)
 {
-  info_print("Redirecting stdin -> fifo");
+  if(debug) info_print("Redirecting stdin -> fifo");
 
   char buffer[1024];
   memset(buffer, '\0', sizeof(buffer));
@@ -57,12 +57,12 @@ void* stdin_routine(void* arg)
 
     memset(buffer, '\0', sizeof(buffer));
   }
-  info_print("Stopped stdin -> fifo");
+  if(debug) info_print("Stopped stdin -> fifo");
 
   // If stdout thread has interrupted stdin thread
   if(errno == EINTR)
   {
-    info_print("stdin routine interrupted"); 
+    if(debug) info_print("stdin routine interrupted"); 
   }
 
   // Interrupt stdout thread
@@ -83,13 +83,13 @@ int stdin_stdout_thread_create(pthread_t* stdinThread, pthread_t* stdoutThread)
 {
   if(pthread_create(stdinThread, NULL, &stdin_routine, NULL) != 0)
   {
-    error_print("Failed to create stdin thread");
+    if(debug) error_print("Failed to create stdin thread");
 
     return 1;
   }
   if(pthread_create(stdoutThread, NULL, &stdout_routine, NULL) != 0)
   {
-    error_print("Failed to create stdout thread");
+    if(debug) error_print("Failed to create stdout thread");
 
     // Interrupt stdin thread
     pthread_kill(*stdinThread, SIGUSR1);
@@ -106,11 +106,11 @@ void stdin_stdout_thread_join(pthread_t stdinThread, pthread_t stdoutThread)
 {
   if(pthread_join(stdinThread, NULL) != 0)
   {
-    error_print("Failed to join stdin thread");
+    if(debug) error_print("Failed to join stdin thread");
   }
   if(pthread_join(stdoutThread, NULL) != 0)
   {
-    error_print("Failed to join stdout thread");
+    if(debug) error_print("Failed to join stdout thread");
   }
 }
 
@@ -120,7 +120,7 @@ void stdin_stdout_thread_join(pthread_t stdinThread, pthread_t stdoutThread)
 // - exit the program
 void sigint_handler(int signum)
 {
-  info_print("Keyboard interrupt");
+  if(debug) info_print("Keyboard interrupt");
 
   stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO, debug);
 
@@ -206,6 +206,8 @@ int main(int argc, char* argv[])
   }
 
   bool reversed = false;
+
+  debug = true;
 
   if(argc >= 4)
   {
