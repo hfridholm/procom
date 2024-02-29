@@ -1,5 +1,6 @@
 #include "debug.h"
 #include "fifo.h"
+#include "thread.h"
 
 #include <stdlib.h>
 #include <pthread.h>
@@ -13,7 +14,12 @@ pthread_t stdoutThread;
 int stdinFIFO = -1;
 int stdoutFIFO = -1;
 
+// Settings
 bool debug = false;
+bool reversed = false;
+
+char stdinFIFOname[64] = "stdin";
+char stdoutFIFOname[64] = "stdout";
 
 void* stdout_routine(void* arg)
 {
@@ -71,49 +77,6 @@ void* stdin_routine(void* arg)
   return NULL;
 }
 
-/*
- * Create stdin and stdout threads
- *
- * RETURN
- * - 0 | Success!
- * - 1 | Failed to create stdin thread
- * - 2 | Failed to create stdout thread
- */
-int stdin_stdout_thread_create(pthread_t* stdinThread, pthread_t* stdoutThread)
-{
-  if(pthread_create(stdinThread, NULL, &stdin_routine, NULL) != 0)
-  {
-    if(debug) error_print("Failed to create stdin thread");
-
-    return 1;
-  }
-  if(pthread_create(stdoutThread, NULL, &stdout_routine, NULL) != 0)
-  {
-    if(debug) error_print("Failed to create stdout thread");
-
-    // Interrupt stdin thread
-    pthread_kill(*stdinThread, SIGUSR1);
-
-    return 2;
-  }
-  return 0;
-}
-
-/*
- * Join stdin and stdout threads
- */
-void stdin_stdout_thread_join(pthread_t stdinThread, pthread_t stdoutThread)
-{
-  if(pthread_join(stdinThread, NULL) != 0)
-  {
-    if(debug) error_print("Failed to join stdin thread");
-  }
-  if(pthread_join(stdoutThread, NULL) != 0)
-  {
-    if(debug) error_print("Failed to join stdout thread");
-  }
-}
-
 // This is executed when the user interrupts the program
 // - interrupt and stop the threads
 // - close stdin and stdout FIFOs
@@ -160,59 +123,62 @@ void signals_handler_setup(void)
   sigusr1_handler_setup();
 }
 
-/*
- * Start stdin and stdout thread
- *
- * RETURN
- * - 0 | Success!
- * - 1 | Failed to create stdin and stdout threads
- */
-int stdin_stdout_thread_start(pthread_t* stdinThread, pthread_t* stdoutThread)
-{
-  if(stdin_stdout_thread_create(stdinThread, stdoutThread) != 0) return 1;
-  
-  stdin_stdout_thread_join(*stdinThread, *stdoutThread);
-
-  return 0;
-}
-
-int console_process(const char stdinFIFOname[], const char stdoutFIFOname[], bool reversed)
+int console_process(void)
 {
   if(stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, reversed, debug) != 0) return 1;
 
-  int status = stdin_stdout_thread_start(&stdinThread, &stdoutThread);
+  int status = stdin_stdout_thread_start(&stdinThread, &stdin_routine, &stdoutThread, &stdout_routine, debug);
 
   if(stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO, debug) != 0) return 2;
 
   return (status != 0) ? 3 : 0;
 }
 
+/*
+ * Parse the current passed flag
+ *
+ * FLAGS
+ * --debug         | Output debug messages
+ * --reversed      | Open stdout FIFO before stdin FIFO
+ * --stdin=<name>  | The name of stdin FIFO
+ * --stdout=<name> | The name of stdout FIFO
+ */
+void flag_parse(char flag[])
+{
+  if(!strcmp(flag, "--debug"))
+  {
+    debug = true;
+  }
+  else if(!strcmp(flag, "--reversed"))
+  {
+    reversed = true;
+  }
+  else if(!strncmp(flag, "--stdin=", 8))
+  {
+    strcpy(stdinFIFOname, flag + 8);
+  }
+  else if(!strncmp(flag, "--stdout=", 9))
+  {
+    strcpy(stdoutFIFOname, flag + 9);
+  }
+}
+
+/*
+ * Parse every passed flag
+ */
+void flags_parse(int argc, char* argv[])
+{
+  for(int index = 1; index < argc; index += 1)
+  {
+    flag_parse(argv[index]);
+  }
+}
+
 int main(int argc, char* argv[])
 {
+  flags_parse(argc, argv);
+
   signals_handler_setup();
 
-  char stdinFIFOname[64];
-  char stdoutFIFOname[64];
-
-  if(argc >= 3)
-  {
-    strcpy(stdinFIFOname, argv[1]);
-    strcpy(stdoutFIFOname, argv[2]);
-  }
-  else 
-  {
-    strcpy(stdinFIFOname, "stdin");
-    strcpy(stdoutFIFOname, "stdout");
-  }
-
-  bool reversed = false;
-
-  debug = true;
-
-  if(argc >= 4)
-  {
-    if(strcmp(argv[3], "reverse") == 0) reversed = true;
-  }
-
-  return console_process(stdinFIFOname, stdoutFIFOname, reversed);
+  return console_process();
 }

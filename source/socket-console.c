@@ -1,5 +1,6 @@
 #include "debug.h"
 #include "socket.h"
+#include "thread.h"
 
 #include <stdlib.h>
 #include <signal.h>
@@ -11,7 +12,11 @@ pthread_t stdoutThread;
 int serverfd = -1;
 int sockfd = -1;
 
+// Settings
 bool debug = false;
+
+char address[64] = "127.0.0.1";
+int port = 5555;
 
 void* stdout_routine(void* arg)
 {
@@ -69,49 +74,6 @@ void* stdin_routine(void* arg)
   return NULL;
 }
 
-/*
- * Create stdin and stdout threads
- *
- * RETURN
- * - 0 | Success!
- * - 1 | Failed to create stdin thread
- * - 2 | Failed to create stdout thread
- */
-int stdin_stdout_thread_create(pthread_t* stdinThread, pthread_t* stdoutThread)
-{
-  if(pthread_create(stdinThread, NULL, &stdin_routine, NULL) != 0)
-  {
-    if(debug) error_print("Failed to create stdin thread");
-
-    return 1;
-  }
-  if(pthread_create(stdoutThread, NULL, &stdout_routine, NULL) != 0)
-  {
-    if(debug) error_print("Failed to create stdout thread");
-
-    // Interrupt stdin thread
-    pthread_kill(*stdinThread, SIGUSR1);
-
-    return 2;
-  }
-  return 0;
-}
-
-/*
- * Join stdin and stdout threads
- */
-void stdin_stdout_thread_join(pthread_t stdinThread, pthread_t stdoutThread)
-{
-  if(pthread_join(stdinThread, NULL) != 0)
-  {
-    if(debug) error_print("Failed to join stdin thread");
-  }
-  if(pthread_join(stdoutThread, NULL) != 0)
-  {
-    if(debug) error_print("Failed to join stdout thread");
-  }
-}
-
 // This is executed when the user interrupts the program
 // - interrupt and stop the threads
 // - close sock and server sockets
@@ -160,22 +122,6 @@ void signals_handler_setup(void)
 }
 
 /*
- * Start stdin and stdout thread
- *
- * RETURN
- * - 0 | Success!
- * - 1 | Failed to create stdin and stdout threads
- */
-int stdin_stdout_thread_start(pthread_t* stdinThread, pthread_t* stdoutThread)
-{
-  if(stdin_stdout_thread_create(stdinThread, stdoutThread) != 0) return 1;
-  
-  stdin_stdout_thread_join(*stdinThread, *stdoutThread);
-
-  return 0;
-}
-
-/*
  * Accept socket client
  *
  * RETURN
@@ -183,13 +129,13 @@ int stdin_stdout_thread_start(pthread_t* stdinThread, pthread_t* stdoutThread)
  * - 1 | Failed to accept client socket
  * - 2 | Failed to start stdin and stdout threads
  */
-int server_process_step2(const char address[], int port)
+int server_process_step2(void)
 {
   sockfd = socket_accept(serverfd, address, port, debug);
 
   if(sockfd == -1) return 1;
 
-  int status = stdin_stdout_thread_start(&stdinThread, &stdoutThread);
+  int status = stdin_stdout_thread_start(&stdinThread, &stdin_routine, &stdoutThread, &stdout_routine, debug);
 
   socket_close(&sockfd, debug);
 
@@ -204,13 +150,13 @@ int server_process_step2(const char address[], int port)
  * - 1 | Failed to create server socket
  * - 2 | Failed server_process_step2
  */
-int server_process(const char address[], int port)
+int server_process(void)
 {
   serverfd = server_socket_create(address, port, 1, debug);
 
   if(serverfd == -1) return 1;
 
-  int status = server_process_step2(address, port);
+  int status = server_process_step2();
 
   socket_close(&serverfd, debug);
 
@@ -225,33 +171,63 @@ int server_process(const char address[], int port)
  * - 1 | Failed to create client socket
  * - 2 | Failed to start stdin and stdout threads
  */
-int client_process(const char address[], int port)
+int client_process(void)
 {
   sockfd = client_socket_create(address, port, debug);
 
   if(sockfd == -1) return 1;
 
-  int status = stdin_stdout_thread_start(&stdinThread, &stdoutThread);
+  int status = stdin_stdout_thread_start(&stdinThread, &stdin_routine, &stdoutThread, &stdout_routine, debug);
 
   socket_close(&sockfd, debug);
 
   return (status != 0) ? 2 : 0;
 }
 
+/*
+ * Parse the current passed flag
+ *
+ * FLAGS
+ * --debug             | Output debug messages
+ * --address=<address> | The server address
+ * --port=<port>       | The server port
+ */
+void flag_parse(char flag[])
+{
+  if(!strcmp(flag, "--debug"))
+  {
+    debug = true;
+  }
+  else if(!strncmp(flag, "--address=", 10))
+  {
+    strcpy(address, flag + 10);
+  }
+  else if(!strncmp(flag, "--port=", 7))
+  {
+    port = atoi(flag + 7);
+  }
+}
+
+/*
+ * Parse every passed flag
+ */
+void flags_parse(int argc, char* argv[])
+{
+  for(int index = 1; index < argc; index += 1)
+  {
+    flag_parse(argv[index]);
+  }
+}
+
 int main(int argc, char* argv[])
 {
+  flags_parse(argc, argv);
+
   signals_handler_setup();
 
-  char address[] = "127.0.0.1";
-  int port = 5555;
-
-  debug = true;
-  
   if(argc >= 2 && strcmp(argv[1], "server") == 0)
   {
-    server_process(address, port);
+    return server_process();
   }
-  else client_process(address, port);
-
-  return 0;
+  else return client_process();
 }

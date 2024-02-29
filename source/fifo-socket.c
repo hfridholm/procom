@@ -1,10 +1,10 @@
 #include "debug.h"
 #include "socket.h"
 #include "fifo.h"
+#include "thread.h"
 
 #include <stdlib.h>
 #include <signal.h>
-#include <pthread.h>
 
 // SIGUSR1 - interrupting threads
 
@@ -17,7 +17,15 @@ int sockfd = -1;
 int stdinFIFO = -1;
 int stdoutFIFO = -1;
 
+// Settings
 bool debug = false;
+bool reversed = false;
+
+char address[64] = "127.0.0.1";
+int port = 5555;
+
+char stdinFIFOname[64] = "stdin";
+char stdoutFIFOname[64] = "stdout";
 
 void* stdout_routine(void* arg)
 {
@@ -81,48 +89,6 @@ void* stdin_routine(void* arg)
   return NULL;
 }
 
-/*
- * Create stdin and stdout threads
- *
- * RETURN
- * - 0 | Success!
- * - 1 | Failed to create stdin thread
- * - 2 | Failed to create stdout thread
- */
-int stdin_stdout_thread_create(pthread_t* stdinThread, pthread_t* stdoutThread)
-{
-  if(pthread_create(stdinThread, NULL, &stdin_routine, NULL) != 0)
-  {
-    if(debug) error_print("Failed to create stdin thread");
-
-    return 1;
-  }
-  if(pthread_create(stdoutThread, NULL, &stdout_routine, NULL) != 0)
-  {
-    if(debug) error_print("Failed to create stdout thread");
-
-    // Interrupt stdin thread
-    pthread_kill(*stdinThread, SIGUSR1);
-
-    return 2;
-  }
-  return 0;
-}
-
-/*
- * Join stdin and stdout threads
- */
-void stdin_stdout_thread_join(pthread_t stdinThread, pthread_t stdoutThread)
-{
-  if(pthread_join(stdinThread, NULL) != 0)
-  {
-    if(debug) error_print("Failed to join stdin thread");
-  }
-  if(pthread_join(stdoutThread, NULL) != 0)
-  {
-    if(debug) error_print("Failed to join stdout thread");
-  }
-}
 
 // This is executed when the user interrupts the program
 // - interrupt and stop the threads
@@ -175,22 +141,6 @@ void signals_handler_setup(void)
 }
 
 /*
- * Start stdin and stdout thread
- *
- * RETURN
- * - 0 | Success!
- * - 1 | Failed to create stdin and stdout threads
- */
-int stdin_stdout_thread_start(pthread_t* stdinThread, pthread_t* stdoutThread)
-{
-  if(stdin_stdout_thread_create(stdinThread, stdoutThread) != 0) return 1;
-  
-  stdin_stdout_thread_join(*stdinThread, *stdoutThread);
-
-  return 0;
-}
-
-/*
  * Accept socket client
  *
  * RETURN
@@ -198,13 +148,13 @@ int stdin_stdout_thread_start(pthread_t* stdinThread, pthread_t* stdoutThread)
  * - 1 | Failed to accept client socket
  * - 2 | Failed to start stdin and stdout threads
  */
-int server_process_step3(const char address[], int port)
+int server_process_step3(void)
 {
   sockfd = socket_accept(serverfd, address, port, debug);
 
   if(sockfd == -1) return 1;
 
-  int status = stdin_stdout_thread_start(&stdinThread, &stdoutThread);
+  int status = stdin_stdout_thread_start(&stdinThread, &stdin_routine, &stdoutThread, &stdout_routine, debug);
 
   socket_close(&sockfd, debug);
 
@@ -219,13 +169,13 @@ int server_process_step3(const char address[], int port)
  * - 1 | Failed to create server socket
  * - 2 | Failed server_process_step3
  */
-int server_process_step2(const char address[], int port)
+int server_process_step2(void)
 {
   serverfd = server_socket_create(address, port, 1, debug);
 
   if(serverfd == -1) return 1;
 
-  int status = server_process_step3(address, port);
+  int status = server_process_step3();
 
   socket_close(&serverfd, debug);
 
@@ -239,11 +189,11 @@ int server_process_step2(const char address[], int port)
  * - 2 | Failed to close stdin and stdout FIFOs
  * - 3 | Failed server_process_step2
  */
-int server_process(const char address[], int port, const char stdinFIFOname[], const char stdoutFIFOname[], bool reversed)
+int server_process(void)
 {
   if(stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, reversed, debug) != 0) return 1;
 
-  int status = server_process_step2(address, port);
+  int status = server_process_step2();
 
   if(stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO, debug) != 0) return 2;
 
@@ -258,13 +208,13 @@ int server_process(const char address[], int port, const char stdinFIFOname[], c
  * - 1 | Failed to create client socket
  * - 2 | Failed to start stdin and stdout threads
  */
-int client_process_step2(const char address[], int port)
+int client_process_step2(void)
 {
   sockfd = client_socket_create(address, port, debug);
 
   if(sockfd == -1) return 1;
 
-  int status = stdin_stdout_thread_start(&stdinThread, &stdoutThread);
+  int status = stdin_stdout_thread_start(&stdinThread, &stdin_routine, &stdoutThread, &stdout_routine, debug);
 
   socket_close(&sockfd, debug);
 
@@ -278,34 +228,76 @@ int client_process_step2(const char address[], int port)
  * - 2 | Failed to close stdin and stdout FIFOs
  * - 3 | Failed client_process_step2
  */
-int client_process(const char address[], int port, const char stdinFIFOname[], const char stdoutFIFOname[], bool reversed)
+int client_process(void)
 {
   if(stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, reversed, debug) != 0) return 1;
 
-  int status = client_process_step2(address, port);
+  int status = client_process_step2();
 
   if(stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO, debug) != 0) return 2;
   
   return (status != 0) ? 3 : 0;
 }
 
+/*
+ * Parse the current passed flag
+ *
+ * FLAGS
+ * --debug             | Output debug messages
+ * --reversed          | Open stdout FIFO before stdin FIFO
+ * --stdin=<name>      | The name of stdin FIFO
+ * --stdout=<name>     | The name of stdout FIFO
+ * --address=<address> | The server address
+ * --port=<port>       | The server port
+ */
+void flag_parse(char flag[])
+{
+  if(!strcmp(flag, "--debug"))
+  {
+    debug = true;
+  }
+  else if(!strcmp(flag, "--reversed"))
+  {
+    reversed = true;
+  }
+  else if(!strncmp(flag, "--address=", 10))
+  {
+    strcpy(address, flag + 10);
+  }
+  else if(!strncmp(flag, "--port=", 7))
+  {
+    port = atoi(flag + 7);
+  }
+  else if(!strncmp(flag, "--stdin=", 8))
+  {
+    strcpy(stdinFIFOname, flag + 8);
+  }
+  else if(!strncmp(flag, "--stdout=", 9))
+  {
+    strcpy(stdoutFIFOname, flag + 9);
+  }
+}
+
+/*
+ * Parse every passed flag
+ */
+void flags_parse(int argc, char* argv[])
+{
+  for(int index = 1; index < argc; index += 1)
+  {
+    flag_parse(argv[index]);
+  }
+}
+
 int main(int argc, char* argv[])
 {
+  flags_parse(argc, argv);
+
   signals_handler_setup();
-
-  char address[] = "";
-  int port = 5555;
-
-  char stdinFIFOname[] = "stdin";
-  char stdoutFIFOname[] = "stdout";
-
-  bool reversed = false;
-  
-  debug = true;
 
   if(argc >= 2 && strcmp(argv[1], "server") == 0)
   {
-    return server_process(address, port, stdinFIFOname, stdoutFIFOname, reversed);
+    return server_process();
   }
-  else return client_process(address, port, stdinFIFOname, stdoutFIFOname, reversed);
+  else return client_process();
 }

@@ -4,6 +4,7 @@
 #include <signal.h>
 #include <string.h>
 
+// Settings
 bool debug = false;
 
 void sigint_handler(int signum)
@@ -49,11 +50,36 @@ void signals_handler_setup(void)
   sigpipe_handler_setup();
 }
 
+/*
+ * Parse the current passed flag
+ *
+ * FLAGS
+ * --debug | Output debug messages
+ */
+void flag_parse(char flag[])
+{
+  if(!strcmp(flag, "--debug"))
+  {
+    debug = true;
+  }
+}
+
+/*
+ * Parse every passed flag
+ */
+void flags_parse(int argc, char* argv[])
+{
+  for(int index = 1; index < argc; index += 1)
+  {
+    flag_parse(argv[index]);
+  }
+}
+
 int main(int argc, char* argv[])
 {
-  signals_handler_setup();
+  flags_parse(argc, argv);
 
-  debug = true;
+  signals_handler_setup();
 
   char buffer[1024];
   memset(buffer, '\0', sizeof(buffer));
@@ -64,6 +90,7 @@ int main(int argc, char* argv[])
     
     memset(buffer, '\0', sizeof(buffer));
   }
+
   if(debug) info_print("Input pipe interrupted");
 
   return 0; // Exits the program with status 0
