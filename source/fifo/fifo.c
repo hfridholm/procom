@@ -5,18 +5,18 @@
  * - 0 | Success!
  * - 1 | Failed to open stdin FIFO
  */
-int stdin_fifo_open(int* stdinFIFO, const char stdinFIFOname[], bool debug)
+int stdin_fifo_open(int* stdinFIFO, const char* stdinPathname, bool debug)
 {
-  if(debug) info_print("Opening stdin FIFO");
+  if(debug) info_print("Opening stdin FIFO (%s)", stdinPathname);
 
-  if((*stdinFIFO = open(stdinFIFOname, O_WRONLY)) == -1)
+  if((*stdinFIFO = open(stdinPathname, O_WRONLY)) == -1)
   {
-    if(debug) error_print("Failed to open stdin FIFO");
+    if(debug) error_print("Failed to open stdin FIFO (%s)", stdinPathname);
     
     return 1;
   }
 
-  if(debug) info_print("Opened stdin FIFO");
+  if(debug) info_print("Opened stdin FIFO (%s)", stdinPathname);
 
   return 0;
 }
@@ -26,18 +26,18 @@ int stdin_fifo_open(int* stdinFIFO, const char stdinFIFOname[], bool debug)
  * - 0 | Success!
  * - 1 | Failed to open stdout FIFO
  */
-int stdout_fifo_open(int* stdoutFIFO, const char stdoutFIFOname[], bool debug)
+int stdout_fifo_open(int* stdoutFIFO, const char stdoutPathname[], bool debug)
 {
-  if(debug) info_print("Opening stdout FIFO");
+  if(debug) info_print("Opening stdout FIFO (%s)", stdoutPathname);
 
-  if((*stdoutFIFO = open(stdoutFIFOname, O_RDONLY)) == -1)
+  if((*stdoutFIFO = open(stdoutPathname, O_RDONLY)) == -1)
   {
-    if(debug) error_print("Failed to open stdout FIFO");
+    if(debug) error_print("Failed to open stdout FIFO (%s)", stdoutPathname);
 
     return 1;
   }
   
-  if(debug) info_print("Opened stdout FIFO");
+  if(debug) info_print("Opened stdout FIFO (%s)", stdoutPathname);
 
   return 0;
 }
@@ -104,13 +104,13 @@ bool stdout_fifo_close(int* stdoutFIFO, bool debug)
  * This is a very nice programming concept
  * I have never seen it being used before
  */
-int stdout_stdin_fifo_open(int* stdoutFIFO, const char stdoutFIFOname[], int* stdinFIFO, const char stdinFIFOname[], bool reversed, bool debug)
+int stdout_stdin_fifo_open(int* stdoutFIFO, const char* stdoutPathname, int* stdinFIFO, const char* stdinPathname, bool reversed, bool debug)
 {
-  if(reversed) return stdin_stdout_fifo_open(stdinFIFO, stdinFIFOname, stdoutFIFO, stdoutFIFOname, !reversed, debug);
+  if(reversed) return stdin_stdout_fifo_open(stdinFIFO, stdinPathname, stdoutFIFO, stdoutPathname, !reversed, debug);
 
-  if(stdout_fifo_open(stdoutFIFO, stdoutFIFOname, debug) != 0) return 2;
+  if(stdout_fifo_open(stdoutFIFO, stdoutPathname, debug) != 0) return 2;
 
-  if(stdin_fifo_open(stdinFIFO, stdinFIFOname, debug) != 0)
+  if(stdin_fifo_open(stdinFIFO, stdinPathname, debug) != 0)
   {
     stdout_fifo_close(stdoutFIFO, debug);
 
@@ -130,13 +130,13 @@ int stdout_stdin_fifo_open(int* stdoutFIFO, const char stdoutFIFOname[], int* st
  * - 1 | Failed to open stdin FIFO
  * - 2 | Failed to open stdout FIFO
  */
-int stdin_stdout_fifo_open(int* stdinFIFO, const char stdinFIFOname[], int* stdoutFIFO, const char stdoutFIFOname[], bool reversed, bool debug)
+int stdin_stdout_fifo_open(int* stdinFIFO, const char* stdinPathname, int* stdoutFIFO, const char* stdoutPathname, bool reversed, bool debug)
 {
-  if(reversed) return stdout_stdin_fifo_open(stdoutFIFO, stdoutFIFOname, stdinFIFO, stdinFIFOname, !reversed, debug);
+  if(reversed) return stdout_stdin_fifo_open(stdoutFIFO, stdoutPathname, stdinFIFO, stdinPathname, !reversed, debug);
 
-  if(stdin_fifo_open(stdinFIFO, stdinFIFOname, debug) != 0) return 1;
+  if(stdin_fifo_open(stdinFIFO, stdinPathname, debug) != 0) return 1;
 
-  if(stdout_fifo_open(stdoutFIFO, stdoutFIFOname, debug) != 0)
+  if(stdout_fifo_open(stdoutFIFO, stdoutPathname, debug) != 0)
   {
     stdin_fifo_close(stdinFIFO, debug);
 

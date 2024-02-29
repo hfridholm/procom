@@ -18,8 +18,8 @@ int stdoutFIFO = -1;
 bool debug = false;
 bool reversed = false;
 
-char stdinFIFOname[64] = "stdin";
-char stdoutFIFOname[64] = "stdout";
+char stdinPathname[64] = "stdin";
+char stdoutPathname[64] = "stdout";
 
 void* stdout_routine(void* arg)
 {
@@ -125,7 +125,7 @@ void signals_handler_setup(void)
 
 int console_process(void)
 {
-  if(stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, reversed, debug) != 0) return 1;
+  if(stdin_stdout_fifo_open(&stdinFIFO, stdinPathname, &stdoutFIFO, stdoutPathname, reversed, debug) != 0) return 1;
 
   int status = stdin_stdout_thread_start(&stdinThread, &stdin_routine, &stdoutThread, &stdout_routine, debug);
 
@@ -155,11 +155,11 @@ void flag_parse(char flag[])
   }
   else if(!strncmp(flag, "--stdin=", 8))
   {
-    strcpy(stdinFIFOname, flag + 8);
+    strcpy(stdinPathname, flag + 8);
   }
   else if(!strncmp(flag, "--stdout=", 9))
   {
-    strcpy(stdoutFIFOname, flag + 9);
+    strcpy(stdoutPathname, flag + 9);
   }
 }
 

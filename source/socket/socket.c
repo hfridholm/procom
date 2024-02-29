@@ -41,16 +41,16 @@ int socket_bind(int sockfd, const char address[], int port, bool debug)
 {
   struct sockaddr_in addr = sockaddr_create(sockfd, address, port, debug);
 
-  if(debug) info_print("Binding socket");
+  if(debug) info_print("Binding socket (%s:%d)", address, port);
 
   if(bind(sockfd, (struct sockaddr*) &addr, sizeof(addr)) == -1)
   {
-    if(debug) error_print("Failed to bind socket: %s", strerror(errno));
+    if(debug) error_print("Failed to bind socket (%s:%d): %s", address, port, strerror(errno));
 
     return -1;
   }
   
-  if(debug) info_print("Binded socket");
+  if(debug) info_print("Binded socket (%s:%d)", address, port);
 
   return 0;
 }
@@ -136,16 +136,16 @@ int socket_connect(int sockfd, const char address[], int port, bool debug)
 {
   struct sockaddr_in addr = sockaddr_create(sockfd, address, port, debug);
 
-  if(debug) info_print("Connecting socket");
+  if(debug) info_print("Connecting socket (%s:%d)", address, port);
 
   if(connect(sockfd, (struct sockaddr*) &addr, sizeof(addr)) == -1)
   {
-    if(debug) error_print("Failed to connect socket: %s", strerror(errno));
+    if(debug) error_print("Failed to connect socket (%s:%d): %s", address, port, strerror(errno));
 
     return -1;
   }
 
-  if(debug) info_print("Connected socket");
+  if(debug) info_print("Connected socket (%s:%d)", address, port);
 
   return 0;
 }

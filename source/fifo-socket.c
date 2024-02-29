@@ -24,8 +24,8 @@ bool reversed = false;
 char address[64] = "127.0.0.1";
 int port = 5555;
 
-char stdinFIFOname[64] = "stdin";
-char stdoutFIFOname[64] = "stdout";
+char stdinPathname[64] = "stdin";
+char stdoutPathname[64] = "stdout";
 
 void* stdout_routine(void* arg)
 {
@@ -191,7 +191,7 @@ int server_process_step2(void)
  */
 int server_process(void)
 {
-  if(stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, reversed, debug) != 0) return 1;
+  if(stdin_stdout_fifo_open(&stdinFIFO, stdinPathname, &stdoutFIFO, stdoutPathname, reversed, debug) != 0) return 1;
 
   int status = server_process_step2();
 
@@ -230,7 +230,7 @@ int client_process_step2(void)
  */
 int client_process(void)
 {
-  if(stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, reversed, debug) != 0) return 1;
+  if(stdin_stdout_fifo_open(&stdinFIFO, stdinPathname, &stdoutFIFO, stdoutPathname, reversed, debug) != 0) return 1;
 
   int status = client_process_step2();
 
@@ -270,11 +270,11 @@ void flag_parse(char flag[])
   }
   else if(!strncmp(flag, "--stdin=", 8))
   {
-    strcpy(stdinFIFOname, flag + 8);
+    strcpy(stdinPathname, flag + 8);
   }
   else if(!strncmp(flag, "--stdout=", 9))
   {
-    strcpy(stdoutFIFOname, flag + 9);
+    strcpy(stdoutPathname, flag + 9);
   }
 }
 
