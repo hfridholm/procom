@@ -13,6 +13,8 @@ pthread_t stdoutThread;
 int stdinFIFO = -1;
 int stdoutFIFO = -1;
 
+bool debug = false;
+
 void* stdout_routine(void* arg)
 {
   info_print("Redirecting fifo -> stdout");
@@ -114,11 +116,13 @@ void stdin_stdout_thread_join(pthread_t stdinThread, pthread_t stdoutThread)
 
 // This is executed when the user interrupts the program
 // - interrupt and stop the threads
-// - close sock and server sockets
+// - close stdin and stdout FIFOs
 // - exit the program
 void sigint_handler(int signum)
 {
   info_print("Keyboard interrupt");
+
+  stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO, debug);
 
   exit(1); // Exits the program with status 1
 }
@@ -174,11 +178,11 @@ int stdin_stdout_thread_start(pthread_t* stdinThread, pthread_t* stdoutThread)
 
 int console_process(const char stdinFIFOname[], const char stdoutFIFOname[], bool reversed)
 {
-  if(stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, reversed) != 0) return 1;
+  if(stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, reversed, debug) != 0) return 1;
 
   int status = stdin_stdout_thread_start(&stdinThread, &stdoutThread);
 
-  if(stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO) != 0) return 2;
+  if(stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO, debug) != 0) return 2;
 
   return (status != 0) ? 3 : 0;
 }

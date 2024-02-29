@@ -133,7 +133,7 @@ void sigint_handler(int signum)
 {
   info_print("Keyboard interrupt");
 
-  stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO);
+  stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO, debug);
 
   socket_close(&sockfd, debug);
   socket_close(&serverfd, debug);
@@ -241,11 +241,11 @@ int server_process_step2(const char address[], int port)
  */
 int server_process(const char address[], int port, const char stdinFIFOname[], const char stdoutFIFOname[], bool reversed)
 {
-  if(stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, reversed) != 0) return 1;
+  if(stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, reversed, debug) != 0) return 1;
 
   int status = server_process_step2(address, port);
 
-  if(stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO) != 0) return 2;
+  if(stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO, debug) != 0) return 2;
 
   return (status != 0) ? 3 : 0;
 }
@@ -280,11 +280,11 @@ int client_process_step2(const char address[], int port)
  */
 int client_process(const char address[], int port, const char stdinFIFOname[], const char stdoutFIFOname[], bool reversed)
 {
-  if(stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, reversed) != 0) return 1;
+  if(stdin_stdout_fifo_open(&stdinFIFO, stdinFIFOname, &stdoutFIFO, stdoutFIFOname, reversed, debug) != 0) return 1;
 
   int status = client_process_step2(address, port);
 
-  if(stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO) != 0) return 2;
+  if(stdin_stdout_fifo_close(&stdinFIFO, &stdoutFIFO, debug) != 0) return 2;
   
   return (status != 0) ? 3 : 0;
 }
