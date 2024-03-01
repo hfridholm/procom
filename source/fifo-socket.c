@@ -11,6 +11,9 @@
 pthread_t stdinThread;
 pthread_t stdoutThread;
 
+bool stdinThreadRunning = false;
+bool stdoutThreadRunning = false;
+
 int serverfd = -1;
 int sockfd = -1;
 
@@ -29,6 +32,8 @@ char stdoutPathname[64] = "stdout";
 
 void* stdout_routine(void* arg)
 {
+  stdoutThreadRunning = true;
+
   if(debug) info_print("Redirecting socket -> fifo");
 
   char buffer[1024];
@@ -55,11 +60,15 @@ void* stdout_routine(void* arg)
   // Interrupt stdin thread
   pthread_kill(stdinThread, SIGUSR1);
 
+  stdoutThreadRunning = false;
+
   return NULL;
 }
 
 void* stdin_routine(void* arg)
 {
+  stdinThreadRunning = true;
+
   if(debug) info_print("Redirecting fifo -> socket");
 
   char buffer[1024];
@@ -86,6 +95,8 @@ void* stdin_routine(void* arg)
   // Interrupt stdout thread
   pthread_kill(stdoutThread, SIGUSR1);
 
+  stdinThreadRunning = false;
+
   return NULL;
 }
 
@@ -96,8 +107,8 @@ void sigint_handler(int signum)
 {
   if(debug) info_print("Keyboard interrupt");
 
-  pthread_kill(stdinThread, SIGUSR1);
-  pthread_kill(stdoutThread, SIGUSR1);
+  if(stdinThreadRunning) pthread_kill(stdinThread, SIGUSR1);
+  if(stdoutThreadRunning) pthread_kill(stdoutThread, SIGUSR1);
 }
 
 void sigint_handler_setup(void)
