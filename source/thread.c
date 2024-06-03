@@ -1,4 +1,4 @@
-#include "../thread.h"
+#include "thread.h"
 
 /*
  * Create stdin and stdout threads

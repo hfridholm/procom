@@ -1,4 +1,4 @@
-#include "../fifo.h"
+#include "fifo.h"
 
 /*
  * RETURN

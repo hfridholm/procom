@@ -1,4 +1,4 @@
-#include "../socket.h"
+#include "socket.h"
 
 /*
  * Create sockaddr from an address and a port

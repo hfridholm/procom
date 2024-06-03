@@ -1,4 +1,4 @@
-#include "../debug.h"
+#include "debug.h"
 
 /*
  * Format string of current time in timezone with hours, minuts, seconds and ms
