@@ -1,3 +1,9 @@
+/*
+ * Written by Hampus Fridholm
+ *
+ * Last updated: 2024-07-03
+ */
+
 #include "thread.h"
 
 /*

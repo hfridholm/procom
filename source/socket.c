@@ -1,3 +1,9 @@
+/*
+ * Written by Hampus Fridholm
+ *
+ * Last updated: 2024-07-03
+ */
+
 #include "socket.h"
 
 /*
@@ -9,7 +15,7 @@
  * RETURN
  * - struct sockaddr_in addr | The created sockaddr
  */
-struct sockaddr_in sockaddr_create(int sockfd, const char address[], int port, bool debug)
+static struct sockaddr_in sockaddr_create(int sockfd, const char* address, int port, bool debug)
 {
   struct sockaddr_in addr;
 
@@ -37,7 +43,7 @@ struct sockaddr_in sockaddr_create(int sockfd, const char address[], int port, b
  * - 0  | Success!
  * - -1 | Failed to bind socket
  */
-int socket_bind(int sockfd, const char address[], int port, bool debug)
+static int socket_bind(int sockfd, const char* address, int port, bool debug)
 {
   struct sockaddr_in addr = sockaddr_create(sockfd, address, port, debug);
 
@@ -85,7 +91,7 @@ int socket_listen(int sockfd, int backlog, bool debug)
  * - SUCCESS | File descriptor of created socket
  * - ERROR   | -1
  */
-int socket_create(bool debug)
+static int socket_create(bool debug)
 {
   if(debug) info_print("Creating socket");
 
@@ -110,19 +116,19 @@ int socket_create(bool debug)
  * - SUCCESS | File descriptor of created server socket
  * - ERROR   | -1
  */
-int server_socket_create(const char address[], int port, int backlog, bool debug)
+int server_socket_create(const char* address, int port, bool debug)
 {
-  int sockfd = socket_create(debug);
+  int servfd = socket_create(debug);
 
-  if(sockfd == -1) return -1;
+  if(servfd == -1) return -1;
 
-  if(socket_bind(sockfd, address, port, debug) == -1 || socket_listen(sockfd, backlog, debug) == -1)
+  if(socket_bind(servfd, address, port, debug) == -1 || socket_listen(servfd, 1, debug) == -1)
   {
-    socket_close(&sockfd, debug);
+    socket_close(&servfd, debug);
 
     return -1;
   }
-  return sockfd;
+  return servfd;
 }
 
 /*
@@ -132,7 +138,7 @@ int server_socket_create(const char address[], int port, int backlog, bool debug
  * - 0  | Success!
  * - -1 | Failed to connect to server socket
  */
-int socket_connect(int sockfd, const char address[], int port, bool debug)
+static int socket_connect(int sockfd, const char* address, int port, bool debug)
 {
   struct sockaddr_in addr = sockaddr_create(sockfd, address, port, debug);
 
@@ -157,7 +163,7 @@ int socket_connect(int sockfd, const char address[], int port, bool debug)
  * - SUCCESS | File descriptor of created client socket
  * - ERROR   | -1
  */
-int client_socket_create(const char address[], int port, bool debug)
+int client_socket_create(const char* address, int port, bool debug)
 {
   int sockfd = socket_create(debug);
 
@@ -179,26 +185,26 @@ int client_socket_create(const char address[], int port, bool debug)
  * - SUCCESS | File descriptor to accepted socket
  * - ERROR   | -1
  */
-int socket_accept(int sockfd, const char address[], int port, bool debug)
+int socket_accept(int servfd, const char* address, int port, bool debug)
 {
-  struct sockaddr_in sockaddr = sockaddr_create(sockfd, address, port, debug);
+  struct sockaddr_in sockaddr = sockaddr_create(servfd, address, port, debug);
 
   int addrlen = sizeof(sockaddr);
 
   if(debug) info_print("Accepting socket");
 
-  int acceptfd = accept(sockfd, (struct sockaddr*) &sockaddr, (socklen_t*) &addrlen);
+  int sockfd = accept(servfd, (struct sockaddr*) &sockaddr, (socklen_t*) &addrlen);
 
-  if(acceptfd == -1)
+  if(sockfd == -1)
   {
     if(debug) error_print("Failed to accept socket: %s", strerror(errno));
 
     return -1;
   }
 
-  if(debug) info_print("Accepted socket (%d)", acceptfd);
+  if(debug) info_print("Accepted socket (%d)", sockfd);
 
-  return acceptfd;
+  return sockfd;
 }
 
 /*

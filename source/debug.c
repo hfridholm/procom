@@ -1,3 +1,9 @@
+/*
+ * Written by Hampus Fridholm
+ *
+ * Last updated: 2024-07-03
+ */
+
 #include "debug.h"
 
 /*
@@ -11,7 +17,7 @@
  * - SUCCESS | Pointer at the time format string
  * - ERROR   | NULL
  */
-char* time_format_string(char* buffer, struct timezone* timezone)
+static char* time_format_string(char* buffer, struct timezone* timezone)
 {
   struct timeval timeval;
   if(gettimeofday(&timeval, timezone) == -1) return NULL;
@@ -37,7 +43,7 @@ char* time_format_string(char* buffer, struct timezone* timezone)
  * - SUCCESS | The number of printed characters
  * - ERROR   | A negative value
  */
-bool format_specifier_arg_append(char* buffer, const char* specifier, va_list args)
+static int format_specifier_arg_append(char* buffer, const char* specifier, va_list args)
 {
   if(!strncmp(specifier, "d", 1))
   {
@@ -88,7 +94,7 @@ bool format_specifier_arg_append(char* buffer, const char* specifier, va_list ar
  * - SUCCESS | The number of printed characters
  * - ERROR   | A negative value
  */
-int format_arg_append(char* buffer, const char* format, int* fIndex, va_list args)
+static int format_arg_append(char* buffer, const char* format, int* fIndex, va_list args)
 {
   char specifier[strlen(format)];
   memset(specifier, '\0', sizeof(specifier));
@@ -112,7 +118,8 @@ int format_arg_append(char* buffer, const char* format, int* fIndex, va_list arg
  * - SUCCESS | The number of printed characters
  * - ERROR   | A negative value
  */
-int format_args_string(char* buffer, const char* format, va_list args) {
+static int format_args_string(char* buffer, const char* format, va_list args)
+{
   int bIndex = 0;
 
   for(int fIndex = 0; fIndex < strlen(format); fIndex++)
@@ -139,7 +146,7 @@ int format_args_string(char* buffer, const char* format, va_list args) {
  * - SUCCESS | The number of printed characters
  * - ERROR   | A negative value
  */
-int debug_args_print(FILE* stream, const char* title, const char* format, va_list args)
+static int debug_args_print(FILE* stream, const char* title, const char* format, va_list args)
 {
   char timeString[32];
   memset(timeString, '\0', sizeof(timeString));

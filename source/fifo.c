@@ -1,3 +1,9 @@
+/*
+ * Written by Hampus Fridholm
+ *
+ * Last updated: 2024-07-03
+ */
+
 #include "fifo.h"
 
 /*
@@ -5,18 +11,18 @@
  * - 0 | Success!
  * - 1 | Failed to open stdin FIFO
  */
-int stdin_fifo_open(int* stdinFIFO, const char* stdinPathname, bool debug)
+int stdin_fifo_open(int* fifo, const char* path, bool debug)
 {
-  if(debug) info_print("Opening stdin FIFO (%s)", stdinPathname);
+  if(debug) info_print("Opening stdin FIFO (%s)", path);
 
-  if((*stdinFIFO = open(stdinPathname, O_WRONLY)) == -1)
+  if((*fifo = open(path, O_WRONLY)) == -1)
   {
-    if(debug) error_print("Failed to open stdin FIFO (%s)", stdinPathname);
+    if(debug) error_print("Failed to open stdin FIFO (%s)", path);
     
     return 1;
   }
 
-  if(debug) info_print("Opened stdin FIFO (%s)", stdinPathname);
+  if(debug) info_print("Opened stdin FIFO (%s)", path);
 
   return 0;
 }
@@ -26,18 +32,18 @@ int stdin_fifo_open(int* stdinFIFO, const char* stdinPathname, bool debug)
  * - 0 | Success!
  * - 1 | Failed to open stdout FIFO
  */
-int stdout_fifo_open(int* stdoutFIFO, const char stdoutPathname[], bool debug)
+int stdout_fifo_open(int* fifo, const char* path, bool debug)
 {
-  if(debug) info_print("Opening stdout FIFO (%s)", stdoutPathname);
+  if(debug) info_print("Opening stdout FIFO (%s)", path);
 
-  if((*stdoutFIFO = open(stdoutPathname, O_RDONLY)) == -1)
+  if((*fifo = open(path, O_RDONLY)) == -1)
   {
-    if(debug) error_print("Failed to open stdout FIFO (%s)", stdoutPathname);
+    if(debug) error_print("Failed to open stdout FIFO (%s)", path);
 
     return 1;
   }
   
-  if(debug) info_print("Opened stdout FIFO (%s)", stdoutPathname);
+  if(debug) info_print("Opened stdout FIFO (%s)", path);
 
   return 0;
 }
@@ -47,20 +53,20 @@ int stdout_fifo_open(int* stdoutFIFO, const char stdoutPathname[], bool debug)
  * - 0 | Success!
  * - 1 | Failed to close stdin FIFO
  */
-int stdin_fifo_close(int* stdinFIFO, bool debug)
+int stdin_fifo_close(int* fifo, bool debug)
 {
   // No need to close an already closed FIFO
-  if(*stdinFIFO == -1) return 0;
+  if(*fifo == -1) return 0;
 
   if(debug) info_print("Closing stdin FIFO");
 
-  if(close(*stdinFIFO) == -1)
+  if(close(*fifo) == -1)
   {
     if(debug) error_print("Failed to close stdin FIFO: %s", strerror(errno));
 
     return 1;
   }
-  *stdinFIFO = -1;
+  *fifo = -1;
 
   if(debug) info_print("Closed stdin FIFO");
 
@@ -72,29 +78,29 @@ int stdin_fifo_close(int* stdinFIFO, bool debug)
  * - 0 | Success!
  * - 1 | Failed to close stdout FIFO
  */
-bool stdout_fifo_close(int* stdoutFIFO, bool debug)
+int stdout_fifo_close(int* fifo, bool debug)
 {
   // No need to close an already closed FIFO
-  if(*stdoutFIFO == -1) return 0;
+  if(*fifo == -1) return 0;
 
   if(debug) info_print("Closing stdout FIFO");
 
-  if(close(*stdoutFIFO) == -1)
+  if(close(*fifo) == -1)
   {
     if(debug) error_print("Failed to close stdout FIFO: %s", strerror(errno));
 
-    return false;
+    return 1;
   }
-  *stdoutFIFO = -1;
+  *fifo = -1;
 
   if(debug) info_print("Closed stdout FIFO");
 
-  return true;
+  return 0;
 }
 
 /*
  * PARAMS
- * - bool reversed
+ * - bool reverse
  *   - true  | First open stdin then stdout
  *   - false | First open stdout then stdin
  *
@@ -104,15 +110,15 @@ bool stdout_fifo_close(int* stdoutFIFO, bool debug)
  * This is a very nice programming concept
  * I have never seen it being used before
  */
-int stdout_stdin_fifo_open(int* stdoutFIFO, const char* stdoutPathname, int* stdinFIFO, const char* stdinPathname, bool reversed, bool debug)
+int stdout_stdin_fifo_open(int* stdout_fifo, const char* stdout_path, int* stdin_fifo, const char* stdin_path, bool reverse, bool debug)
 {
-  if(reversed) return stdin_stdout_fifo_open(stdinFIFO, stdinPathname, stdoutFIFO, stdoutPathname, !reversed, debug);
+  if(reverse) return stdin_stdout_fifo_open(stdin_fifo, stdin_path, stdout_fifo, stdout_path, !reverse, debug);
 
-  if(stdout_fifo_open(stdoutFIFO, stdoutPathname, debug) != 0) return 2;
+  if(stdout_fifo_open(stdout_fifo, stdout_path, debug) != 0) return 2;
 
-  if(stdin_fifo_open(stdinFIFO, stdinPathname, debug) != 0)
+  if(stdin_fifo_open(stdin_fifo, stdin_path, debug) != 0)
   {
-    stdout_fifo_close(stdoutFIFO, debug);
+    stdout_fifo_close(stdout_fifo, debug);
 
     return 1;
   }
@@ -121,7 +127,7 @@ int stdout_stdin_fifo_open(int* stdoutFIFO, const char* stdoutPathname, int* std
 
 /*
  * PARAMS
- * - bool reversed
+ * - bool reverse
  *   - true  | First open stdout then stdin
  *   - false | First open stdin then stdout
  *
@@ -130,15 +136,15 @@ int stdout_stdin_fifo_open(int* stdoutFIFO, const char* stdoutPathname, int* std
  * - 1 | Failed to open stdin FIFO
  * - 2 | Failed to open stdout FIFO
  */
-int stdin_stdout_fifo_open(int* stdinFIFO, const char* stdinPathname, int* stdoutFIFO, const char* stdoutPathname, bool reversed, bool debug)
+int stdin_stdout_fifo_open(int* stdin_fifo, const char* stdin_path, int* stdout_fifo, const char* stdout_path, bool reverse, bool debug)
 {
-  if(reversed) return stdout_stdin_fifo_open(stdoutFIFO, stdoutPathname, stdinFIFO, stdinPathname, !reversed, debug);
+  if(reverse) return stdout_stdin_fifo_open(stdout_fifo, stdout_path, stdin_fifo, stdin_path, !reverse, debug);
 
-  if(stdin_fifo_open(stdinFIFO, stdinPathname, debug) != 0) return 1;
+  if(stdin_fifo_open(stdin_fifo, stdin_path, debug) != 0) return 1;
 
-  if(stdout_fifo_open(stdoutFIFO, stdoutPathname, debug) != 0)
+  if(stdout_fifo_open(stdout_fifo, stdout_path, debug) != 0)
   {
-    stdin_fifo_close(stdinFIFO, debug);
+    stdin_fifo_close(stdin_fifo, debug);
 
     return 2;
   }
@@ -153,13 +159,13 @@ int stdin_stdout_fifo_open(int* stdinFIFO, const char* stdinPathname, int* stdou
  *
  * Designed to close stdout even if stdin fails
  */
-int stdin_stdout_fifo_close(int* stdinFIFO, int* stdoutFIFO, bool debug)
+int stdin_stdout_fifo_close(int* stdin_fifo, int* stdout_fifo, bool debug)
 {
   int status = 0;
 
-  status = (stdin_fifo_close(stdinFIFO, debug) == 0) ? status : 1;
+  status = (stdin_fifo_close(stdin_fifo, debug) == 0) ? status : 1;
 
-  status = (stdout_fifo_close(stdoutFIFO, debug) == 0) ? status : 2;
+  status = (stdout_fifo_close(stdout_fifo, debug) == 0) ? status : 2;
 
   return status;
 }

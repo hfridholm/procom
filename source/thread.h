@@ -4,6 +4,7 @@
 #include "debug.h"
 
 #include <pthread.h>
+#include <stdbool.h>
 #include <signal.h>
 
 extern int stdin_stdout_thread_create(pthread_t* stdinThread, void *(*stdin_routine) (void *), pthread_t* stdoutThread, void *(*stdout_routine) (void *), bool debug);

@@ -13,13 +13,16 @@
 #include <string.h>
 #include <stdbool.h>
 
-extern int server_socket_create(const char address[], int port, int backlog, bool debug);
+extern int server_socket_create(const char* address, int port, bool debug);
 
-extern int client_socket_create(const char address[], int port, bool debug);
+extern int socket_accept(int servfd, const char* address, int port, bool debug);
 
-extern int socket_accept(int sockfd, const char address[], int port, bool debug);
+
+extern int client_socket_create(const char* address, int port, bool debug);
+
 
 extern int socket_close(int* sockfd, bool debug);
+
 
 extern int socket_write(int sockfd, const char* buffer, size_t size);
 

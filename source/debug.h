@@ -6,7 +6,6 @@
 #include <time.h>
 #include <stdarg.h>
 #include <string.h>
-#include <stdbool.h>
 
 extern int debug_print(FILE* stream, const char* title, const char* format, ...);
 
