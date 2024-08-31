@@ -10,9 +10,9 @@
 #include <string.h>
 #include <unistd.h>
 
-extern int buffer_read(int fd, char* buffer, size_t size);
+extern ssize_t buffer_read(int fd, char* buffer, size_t size);
 
-extern int buffer_write(int fd, const char* buffer, size_t size);
+extern ssize_t buffer_write(int fd, const char* buffer, size_t size);
 
 
 extern int stdin_fifo_open(int* fifo, const char* path, bool debug);

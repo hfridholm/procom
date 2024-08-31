@@ -13,6 +13,9 @@
 #include <string.h>
 #include <stdbool.h>
 
+extern int client_or_server_socket_create(int* sockfd, int* servfd, const char* address, int port, bool debug);
+
+
 extern int server_socket_create(const char* address, int port, bool debug);
 
 extern int socket_accept(int servfd, const char* address, int port, bool debug);
@@ -24,8 +27,8 @@ extern int client_socket_create(const char* address, int port, bool debug);
 extern int socket_close(int* sockfd, bool debug);
 
 
-extern int socket_write(int sockfd, const char* buffer, size_t size);
+extern ssize_t socket_write(int sockfd, const char* buffer, size_t size);
 
-extern int socket_read(int sockfd, char* buffer, size_t size);
+extern ssize_t socket_read(int sockfd, char* buffer, size_t size);
 
 #endif // SOCKET_H

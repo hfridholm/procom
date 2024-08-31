@@ -1,7 +1,7 @@
 /*
  * Written by Hampus Fridholm
  *
- * Last updated: 2024-07-03
+ * Last updated: 2024-08-31
  */
 
 #include "socket.h"
@@ -179,6 +179,37 @@ int client_socket_create(const char* address, int port, bool debug)
 }
 
 /*
+ * RETURN (int status)
+ * - 0 | Success!
+ * - 1 | Failed to create server socket
+ * - 2 | Failed to create client socket
+ *
+ * This function is designed to clean up after it,
+ * in case that it failed
+ */
+int client_or_server_socket_create(int* sockfd, int* servfd, const char* address, int port, bool debug)
+{
+  // 1. Try to connect to a server using address and port
+  *sockfd = client_socket_create(address, port, debug);
+
+  if(*sockfd != -1) return 0;
+
+  // 2. If no server was running, create a new server
+  *servfd = server_socket_create(address, port, debug);
+
+  if(*servfd == -1) return 1;
+
+  // 3. Accept client connecting to server
+  *sockfd = socket_accept(*servfd, address, port, debug);
+
+  if(*sockfd != -1) return 0;
+
+  socket_close(servfd, debug);
+
+  return 2;
+}
+
+/*
  * accept, but with address and port, and with debug messages
  *
  * RETURN (same as accept)
@@ -238,23 +269,24 @@ int socket_close(int* sockfd, bool debug)
  * Read a single line to a buffer from a socket connection
  *
  * RETURN
- * - SUCCESS | The number of read characters
- * - ERROR   | -1
+ * - >0 | The number of read characters
+ * -  0 |
+ * - -1 |
  */
-int socket_read(int sockfd, char* buffer, size_t size)
+ssize_t socket_read(int sockfd, char* buffer, size_t size)
 {
   char symbol = '\0';
-  int index;
+  ssize_t index;
 
   for(index = 0; index < size && symbol != '\n'; index++)
   {
-    int status = recv(sockfd, &symbol, 1, 0);
+    ssize_t status = recv(sockfd, &symbol, 1, 0);
 
     if(status == -1) return -1; // ERROR
 
     buffer[index] = symbol;
 
-    if(status == 0) break; // END OF FILE
+    if(status == 0) return 0; // END OF FILE
   }
   return index;
 }
@@ -263,23 +295,26 @@ int socket_read(int sockfd, char* buffer, size_t size)
  * Write a single line from a buffer to a socket connection
  *
  * RETURN
- * - SUCCESS | The number of written characters
- * - ERROR   | -1
+ * - >0 | The number of written characters
+ * -  0 |
+ * - -1 |
  */
-int socket_write(int sockfd, const char* buffer, size_t size)
+ssize_t socket_write(int sockfd, const char* buffer, size_t size)
 {
-  int index;
+  ssize_t index;
   char symbol;
 
   for(index = 0; index < size; index++)
   {
     symbol = buffer[index];
 
-    int status = send(sockfd, &symbol, 1, 0);
+    ssize_t status = send(sockfd, &symbol, 1, 0);
 
     if(status == -1) return -1; // ERROR
 
-    if(status == 0 || symbol == '\0' || symbol == '\n') break; // END OF FILE
+    if(status == 0) return 0; // End of File
+
+    if(symbol == '\0' || symbol == '\n') break; // END OF FILE
   }
   return index;
 }
