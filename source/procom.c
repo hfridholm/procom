@@ -138,21 +138,26 @@ static ssize_t stdin_thread_write(const char* buffer, size_t size)
   // 1. If both stdin fifo and socket are connected, write to socket
   if(stdin_fifo != -1 && sockfd != -1)
   {
-    if(args.debug) info_print("Forwared message [stdin fifo] => [socket]", buffer);
+    if(args.debug) debug_print(stdout, "fifo => socket", "%s", buffer);
 
     return socket_write(sockfd, buffer, size);
   }
-  // 2. If stdout fifo, but not socket, is connected, write to stdout fifo
+  // 2. If both stdout fifo and socket, but not stdin fifo, are connected, write to socket
+  else if(stdout_fifo != -1 && sockfd != -1)
+  {
+    return socket_write(sockfd, buffer, size);
+  }
+  // 3. If stdout fifo, but not socket, is connected, write to stdout fifo
   else if(stdout_fifo != -1)
   {
     return buffer_write(stdout_fifo, buffer, size);
   }
-  // 3. If socket, but not stdout fifo, is connected, write to socket
+  // 4. If socket, but not stdout fifo, is connected, write to socket
   else if(sockfd != -1)
   {
     return socket_write(sockfd, buffer, size);
   }
-  // 4. If neither stdout fifo nor socket are connected, write to stdout
+  // 5. If neither stdout fifo nor socket are connected, write to stdout
   else
   {
     return buffer_write(1, buffer, size);
@@ -192,7 +197,7 @@ static ssize_t stdout_thread_write(const char* buffer, size_t size)
   // 1. If both stdout fifo and socket are connected, write to stdout fifo
   if(stdout_fifo != -1 && sockfd != -1)
   {
-    if(args.debug) info_print("Forwared message [socket] => [stdout fifo]", buffer);
+    if(args.debug) debug_print(stdout, "socket => fifo", "%s", buffer);
 
     return buffer_write(stdout_fifo, buffer, size);
   }
@@ -291,16 +296,6 @@ void* stdin_routine(void* arg)
   return NULL;
 }
 
-// Try to remove this
-static void fifos_socket_close(void)
-{
-  stdin_stdout_fifo_close(&stdin_fifo, &stdout_fifo, args.debug);
-
-  socket_close(&sockfd, args.debug);
-
-  socket_close(&servfd, args.debug);
-}
-
 /*
  * Keyboard interrupt - close the program (the threads)
  */
@@ -308,9 +303,6 @@ static void sigint_handler(int signum)
 {
   if(args.debug) info_print("Keyboard interrupt");
 
-  fifos_socket_close();
-
-  // Maybe remove these if statements
   if(stdin_running)  pthread_kill(stdin_thread, SIGUSR1);
 
   if(stdout_running) pthread_kill(stdout_thread, SIGUSR1);
@@ -323,8 +315,6 @@ static void sigpipe_handler(int signum)
 {
   if(args.debug) error_print("Pipe has been broken");
 
-  fifos_socket_close();
-
   if(stdin_running)  pthread_kill(stdin_thread, SIGUSR1);
 
   if(stdout_running) pthread_kill(stdout_thread, SIGUSR1);
@@ -333,51 +323,20 @@ static void sigpipe_handler(int signum)
 /*
  *
  */
-static void sigusr1_handler(int signum)
-{
-  fifos_socket_close();
-}
+static void sigusr1_handler(int signum) { }
 
 /*
  *
  */
-static void sigint_handler_setup(void)
+static void signal_handler_setup(int signum, void (*handler) (int))
 {
   struct sigaction sig_action;
 
-  sig_action.sa_handler = sigint_handler;
+  sig_action.sa_handler = handler;
   sig_action.sa_flags = 0;
   sigemptyset(&sig_action.sa_mask);
 
-  sigaction(SIGINT, &sig_action, NULL);
-}
-
-/*
- *
- */
-static void sigpipe_handler_setup(void)
-{
-  struct sigaction sig_action;
-
-  sig_action.sa_handler = sigpipe_handler;
-  sig_action.sa_flags = 0;
-  sigemptyset(&sig_action.sa_mask);
-
-  sigaction(SIGPIPE, &sig_action, NULL);
-}
-
-/*
- *
- */
-static void sigusr1_handler_setup(void)
-{
-  struct sigaction sig_action;
-
-  sig_action.sa_handler = sigusr1_handler;
-  sig_action.sa_flags = 0;
-  sigemptyset(&sig_action.sa_mask);
-
-  sigaction(SIGUSR1, &sig_action, NULL);
+  sigaction(signum, &sig_action, NULL);
 }
 
 /*
@@ -385,11 +344,11 @@ static void sigusr1_handler_setup(void)
  */
 static void signals_handler_setup(void)
 {
-  sigpipe_handler_setup();
-  
-  sigint_handler_setup();
+  signal_handler_setup(SIGPIPE, sigpipe_handler);
 
-  sigusr1_handler_setup();
+  signal_handler_setup(SIGINT,  sigint_handler);
+
+  signal_handler_setup(SIGUSR1, sigusr1_handler);
 }
 
 /*
