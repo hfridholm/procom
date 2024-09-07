@@ -1,10 +1,23 @@
 /*
  * Written by Hampus Fridholm
  *
- * Last updated: 2024-08-31
+ * Last updated: 2024-09-07
  */
 
-#include "procom.h"
+#define DEFAULT_ADDRESS "127.0.0.1"
+#define DEFAULT_PORT    5555
+
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <argp.h>
+#include <signal.h>
+
+#include "debug.h"
+#include "fifo.h"
+#include "socket.h"
+#include "thread.h"
 
 pthread_t stdin_thread;
 bool      stdin_running = false;
@@ -20,9 +33,9 @@ bool fifo_reverse = false;
 int stdin_fifo  = -1;
 int stdout_fifo = -1;
 
-static char doc[] = "procom - proccess communication";
+static char doc[] = "procom - process communication";
 
-static char args_doc[] = "[FILE...]";
+static char args_doc[] = "";
 
 static struct argp_option options[] =
 {
@@ -36,25 +49,19 @@ static struct argp_option options[] =
 
 struct args
 {
-  char** args;
-  size_t arg_count;
   char*  stdin_path;
   char*  stdout_path;
   char*  address;
   int    port;
-  bool   reverse;
   bool   debug;
 };
 
 struct args args =
 {
-  .args        = NULL,
-  .arg_count   = 0,
   .stdin_path  = NULL,
   .stdout_path = NULL,
   .address     = NULL,
   .port        = -1,
-  .reverse     = false,
   .debug       = false
 };
 
@@ -89,22 +96,11 @@ static error_t opt_parse(int key, char* arg, struct argp_state* state)
       if(port != 0) args->port = port;
       break;
 
-    case 'r':
-      args->reverse = true;
-      break;
-
     case 'd':
       args->debug = true;
       break;
 
     case ARGP_KEY_ARG:
-      args->args = realloc(args->args, sizeof(char*) * (state->arg_num + 1));
-
-      if(!args->args) return ENOMEM;
-
-      args->args[state->arg_num] = arg;
-
-      args->arg_count = state->arg_num + 1;
       break;
 
     case ARGP_KEY_END:
@@ -215,27 +211,38 @@ void* stdout_routine(void* arg)
   // No need for a recieving routine if neither fifo nor socket is connected
   if(stdin_fifo == -1 && sockfd == -1) return NULL;
 
-  if(args.debug) info_print("start of stdout routine");
+  if(args.debug) info_print("Start of stdout routine");
 
   stdout_running = true;
 
   char buffer[1024];
   memset(buffer, '\0', sizeof(buffer));
 
-  while(stdout_thread_read(buffer, sizeof(buffer) - 1) > 0)
+  int read_status  = -1;
+  int write_status = -1;
+
+  while((read_status = stdout_thread_read(buffer, sizeof(buffer) - 1)) > 0)
   {
-    stdout_thread_write(buffer, sizeof(buffer) - 1);
+    if((write_status = stdout_thread_write(buffer, sizeof(buffer) - 1)) <= 0) break;
 
     memset(buffer, '\0', sizeof(buffer));
   }
 
-  if(args.debug) info_print("killing stdin routine...");
+  if(errno != 0)
+  {
+    if(args.debug) error_print("%s", strerror(errno));
+  }
 
-  pthread_kill(stdin_thread, SIGUSR1);
+  if(stdin_running)
+  {
+    if(args.debug) info_print("Interrupting stdin routine");
+
+    pthread_kill(stdin_thread, SIGUSR1);
+  }
 
   stdout_running = false;
 
-  if(args.debug) info_print("end of stdout routine");
+  if(args.debug) info_print("End of stdout routine");
 
   return NULL;
 }
@@ -245,36 +252,49 @@ void* stdout_routine(void* arg)
  */
 void* stdin_routine(void* arg)
 {
-  if(args.debug) info_print("start of stdin routine");
+  // No need for an inputting end, if ONLY stdin fifo is connected
+  if(stdin_fifo != -1 && sockfd == -1 && stdout_fifo == -1) return NULL;
+
+  if(args.debug) info_print("Start of stdin routine");
 
   stdin_running = true;
 
   char buffer[1024];
   memset(buffer, '\0', sizeof(buffer));
 
-  while(stdin_thread_read(buffer, sizeof(buffer) - 1) > 0)
+  int read_status  = -1;
+  int write_status = -1;
+
+  while((read_status = stdin_thread_read(buffer, sizeof(buffer) - 1)) > 0)
   {
-    stdin_thread_write(buffer, sizeof(buffer) - 1);
+    if((write_status = stdin_thread_write(buffer, sizeof(buffer) - 1)) <= 0) break;
 
     memset(buffer, '\0', sizeof(buffer));
   }
 
-  if(args.debug) info_print("killing stdout routine...");
+  if(errno != 0)
+  {
+    if(args.debug) error_print("%s", strerror(errno));
+  }
 
-  pthread_kill(stdout_thread, SIGUSR1);
+  if(stdout_running)
+  {
+    if(args.debug) info_print("Interrupting stdout routine");
+
+    pthread_kill(stdout_thread, SIGUSR1);
+  }
 
   stdin_running = false;
 
-  if(args.debug) info_print("end of stdin routine");
+  if(args.debug) info_print("End of stdin routine");
 
   return NULL;
 }
 
+// Try to remove this
 static void fifos_socket_close(void)
 {
-  stdout_fifo_close(&stdout_fifo, args.debug);
-
-  stdin_fifo_close(&stdin_fifo, args.debug);
+  stdin_stdout_fifo_close(&stdin_fifo, &stdout_fifo, args.debug);
 
   socket_close(&sockfd, args.debug);
 
@@ -376,8 +396,14 @@ static void signals_handler_setup(void)
  *
  * If either an address or a port has been inputted,
  * the program should connect to a socket
+ *
+ * RETURN (same as client_or_server_socket_create)
+ * - 0 | Success
+ * - 1 | Failed to create socket
+ *
+ * Note: Success can be omitted, without a socket being created
  */
-static int try_socket_create(void)
+static int args_socket_create(void)
 {
   if(!args.address && args.port == -1) return 0;
 
@@ -385,9 +411,7 @@ static int try_socket_create(void)
 
   if(args.port == -1) args.port = DEFAULT_PORT;
 
-  if(client_or_server_socket_create(&sockfd, &servfd, args.address, args.port, args.debug) != 0) return 1;
-
-  return 0;
+  return client_or_server_socket_create(&sockfd, &servfd, args.address, args.port, args.debug);
 }
 
 static struct argp argp = { options, opt_parse, args_doc, doc };
@@ -402,7 +426,7 @@ int main(int argc, char* argv[])
   signals_handler_setup();
 
 
-  if(try_socket_create() == 0)
+  if(args_socket_create() == 0)
   {
     if(stdin_stdout_fifo_open(&stdin_fifo, args.stdin_path, &stdout_fifo, args.stdout_path, fifo_reverse, args.debug) == 0)
     {
@@ -411,15 +435,13 @@ int main(int argc, char* argv[])
   }
 
 
-  stdout_fifo_close(&stdout_fifo, args.debug);
-
-  stdin_fifo_close(&stdin_fifo, args.debug);
+  stdin_stdout_fifo_close(&stdin_fifo, &stdout_fifo, args.debug);
 
   socket_close(&sockfd, args.debug);
 
   socket_close(&servfd, args.debug);
 
-  if(args.args) free(args.args);
+  if(args.debug) info_print("End of main");
 
   return 0;
 }
