@@ -7,12 +7,9 @@
 #define DEFAULT_ADDRESS "127.0.0.1"
 #define DEFAULT_PORT    5555
 
-#include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <argp.h>
-#include <signal.h>
 
 #include "debug.h"
 #include "fifo.h"
@@ -39,8 +36,8 @@ static char args_doc[] = "";
 
 static struct argp_option options[] =
 {
-  { "stdin",   'i', "FIFO",    0, "Stdin FIFO" },
-  { "stdout",  'o', "FIFO",    0, "Stdout FIFO" },
+  { "stdin",   'i', "FIFO",    0, "Stdin fifo" },
+  { "stdout",  'o', "FIFO",    0, "Stdout fifo" },
   { "address", 'a', "ADDRESS", 0, "Network address" },
   { "port",    'p', "PORT",    0, "Network port" },
   { "debug",   'd', 0,         0, "Print debug messages" },
@@ -138,7 +135,7 @@ static ssize_t stdin_thread_write(const char* buffer, size_t size)
   // 1. If both stdin fifo and socket are connected, write to socket
   if(stdin_fifo != -1 && sockfd != -1)
   {
-    if(args.debug) debug_print(stdout, "fifo => socket", "%s", buffer);
+    if(args.debug) debug_print(stdout, "FIFO => SOCKET", "%s\033[F", buffer);
 
     return socket_write(sockfd, buffer, size);
   }
@@ -197,7 +194,7 @@ static ssize_t stdout_thread_write(const char* buffer, size_t size)
   // 1. If both stdout fifo and socket are connected, write to stdout fifo
   if(stdout_fifo != -1 && sockfd != -1)
   {
-    if(args.debug) debug_print(stdout, "socket => fifo", "%s", buffer);
+    if(args.debug) debug_print(stdout, "SOCKET => FIFO", "%s\033[F", buffer);
 
     return buffer_write(stdout_fifo, buffer, size);
   }
@@ -221,16 +218,15 @@ void* stdout_routine(void* arg)
   stdout_running = true;
 
   char buffer[1024];
-  memset(buffer, '\0', sizeof(buffer));
 
-  int read_status  = -1;
-  int write_status = -1;
+  int read_size = -1, write_size = -1;
 
-  while((read_status = stdout_thread_read(buffer, sizeof(buffer) - 1)) > 0)
+  while((read_size = stdout_thread_read(buffer, sizeof(buffer) - 1)) > 0)
   {
-    if((write_status = stdout_thread_write(buffer, sizeof(buffer) - 1)) <= 0) break;
+    // IMPORTANT: Terminate string after reading bytes
+    buffer[read_size] = '\0';
 
-    memset(buffer, '\0', sizeof(buffer));
+    if((write_size = stdout_thread_write(buffer, sizeof(buffer))) <= 0) break;
   }
 
   if(errno != 0)
@@ -265,16 +261,15 @@ void* stdin_routine(void* arg)
   stdin_running = true;
 
   char buffer[1024];
-  memset(buffer, '\0', sizeof(buffer));
 
-  int read_status  = -1;
-  int write_status = -1;
+  int read_size = -1, write_size = -1;
 
-  while((read_status = stdin_thread_read(buffer, sizeof(buffer) - 1)) > 0)
+  while((read_size = stdin_thread_read(buffer, sizeof(buffer) - 1)) > 0)
   {
-    if((write_status = stdin_thread_write(buffer, sizeof(buffer) - 1)) <= 0) break;
+    // IMPORTANT: Terminate string after reading bytes
+    buffer[read_size] = '\0';
 
-    memset(buffer, '\0', sizeof(buffer));
+    if((write_size = stdin_thread_write(buffer, sizeof(buffer))) <= 0) break;
   }
 
   if(errno != 0)
