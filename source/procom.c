@@ -1,7 +1,7 @@
 /*
  * Written by Hampus Fridholm
  *
- * Last updated: 2024-09-07
+ * Last updated: 2024-09-08
  */
 
 #define DEFAULT_ADDRESS "127.0.0.1"
@@ -111,16 +111,16 @@ static error_t opt_parse(int key, char* arg, struct argp_state* state)
 }
 
 /*
- * The stdin thread takes input from either terminal or fifo
+ * The stdin thread reads from either [stdin] or [stdin fifo]
  */
 static ssize_t stdin_thread_read(char* buffer, size_t size)
 {
-  // 1. If both stdin fifo AND socket are connected, read from stdin fifo
+  // 1. If both [stdin fifo] AND [socket] are connected, read from [stdin fifo]
   if(stdin_fifo != -1 && sockfd != -1)
   {
     return buffer_read(stdin_fifo, buffer, size);
   }
-  // 2. If not both stdin fifo AND socket are connected, read from stdin
+  // 2. If not both [stdin fifo] AND [socket] are connected, read from [stdin]
   else
   {
     return buffer_read(0, buffer, size);
@@ -128,33 +128,33 @@ static ssize_t stdin_thread_read(char* buffer, size_t size)
 }
 
 /*
- * The stdin thread writes to either fifo, socket or terminal
+ * The stdin thread writes to either [stdout fifo], [socket] or [stdout]
  */
 static ssize_t stdin_thread_write(const char* buffer, size_t size)
 {
-  // 1. If both stdin fifo and socket are connected, write to socket
+  // 1. If both [stdin fifo] and [socket] are connected, write to [socket]
   if(stdin_fifo != -1 && sockfd != -1)
   {
     if(args.debug) debug_print(stdout, "FIFO => SOCKET", "%s\033[F", buffer);
 
     return socket_write(sockfd, buffer, size);
   }
-  // 2. If both stdout fifo and socket, but not stdin fifo, are connected, write to socket
+  // 2. If both [stdout fifo] and [socket], but not [stdin fifo], are connected, write to [socket]
   else if(stdout_fifo != -1 && sockfd != -1)
   {
     return socket_write(sockfd, buffer, size);
   }
-  // 3. If stdout fifo, but not socket, is connected, write to stdout fifo
+  // 3. If [stdout fifo], but not [socket], is connected, write to [stdout fifo]
   else if(stdout_fifo != -1)
   {
     return buffer_write(stdout_fifo, buffer, size);
   }
-  // 4. If socket, but not stdout fifo, is connected, write to socket
+  // 4. If [socket], but not [stdout fifo], is connected, write to [socket]
   else if(sockfd != -1)
   {
     return socket_write(sockfd, buffer, size);
   }
-  // 5. If neither stdout fifo nor socket are connected, write to stdout
+  // 5. If neither [stdout fifo] nor [socket] are connected, write to [stdout]
   else
   {
     return buffer_write(1, buffer, size);
@@ -162,43 +162,44 @@ static ssize_t stdin_thread_write(const char* buffer, size_t size)
 } 
 
 /*
- * The stdout thread takes input from either fifo, socket
- * If neither fifo nor socket is connected, nothing is done
+ * The stdout thread reads from either [stdin fifo] or [socket]
+ *
+ * If neither [stdin fifo] nor [socket] are connected, nothing is done
  */
 static ssize_t stdout_thread_read(char* buffer, size_t size)
 {
-  // 1. If both stdin fifo and socket are connected, read from socket
+  // 1. If both [stdin fifo] and [socket] are connected, read from [socket]
   if(stdin_fifo != -1 && sockfd != -1)
   {
     return socket_read(sockfd, buffer, size);
   }
-  // 2. If socket, but not stdin fifo, is connected, read from socket
+  // 2. If [socket], but not [stdin fifo], is connected, read from [socket]
   else if(sockfd != -1)
   {
     return socket_read(sockfd, buffer, size);
   }
-  // 3. If stdin fifo, but not socket, is connected, read from stdin fifo
+  // 3. If [stdin fifo], but not [socket], is connected, read from [stdin fifo]
   else if(stdin_fifo != -1)
   {
     return buffer_read(stdin_fifo, buffer, size);
   }
-  // 4. If neither stdin fifo nor socket are connected, stdout thread should not be running
+  // 4. If neither [stdin fifo] nor [socket] are connected, stdout thread should not be running
   else return -1;
 }
 
 /*
- * The stdout thread writes to either fifo or terminal
+ * The stdout thread writes to either [stdout fifo] or [stdout]
  */
 static ssize_t stdout_thread_write(const char* buffer, size_t size)
 {
-  // 1. If both stdout fifo and socket are connected, write to stdout fifo
+  // 1. If both [stdout fifo] and [socket] are connected, write to [stdout fifo]
   if(stdout_fifo != -1 && sockfd != -1)
   {
     if(args.debug) debug_print(stdout, "SOCKET => FIFO", "%s\033[F", buffer);
 
     return buffer_write(stdout_fifo, buffer, size);
   }
-  // 2. Else, write to stdout
+  // 2. Else, write to [stdout]
   else
   {
     return buffer_write(1, buffer, size);
@@ -206,12 +207,17 @@ static ssize_t stdout_thread_write(const char* buffer, size_t size)
 } 
 
 /*
+ * stdout routine - process that handles one way communication (usually output)
  *
+ * This thread will read from somewhere and write to somewhere else,
+ * depending on configuration of communication
+ *
+ * No need for a recieving routine if neither [stdin fifo] nor [socket] are connected
  */
 void* stdout_routine(void* arg)
 {
-  // No need for a recieving routine if neither fifo nor socket is connected
   if(stdin_fifo == -1 && sockfd == -1) return NULL;
+
 
   if(args.debug) info_print("Start of stdout routine");
 
@@ -249,12 +255,17 @@ void* stdout_routine(void* arg)
 }
 
 /*
+ * stdin routine - process that handles one way communication (usually input)
  *
+ * This thread will read from somewhere and write to somewhere else,
+ * depending on configuration of communication
+ *
+ * No need for an inputting end, if ONLY [stdin fifo] is connected
  */
 void* stdin_routine(void* arg)
 {
-  // No need for an inputting end, if ONLY stdin fifo is connected
   if(stdin_fifo != -1 && sockfd == -1 && stdout_fifo == -1) return NULL;
+
 
   if(args.debug) info_print("Start of stdin routine");
 
@@ -316,12 +327,16 @@ static void sigpipe_handler(int signum)
 }
 
 /*
+ * SIGUSR1 is the signal used to interrupt stdin and stdout routine
  *
+ * The signal doesn't need to be processed, just interrupt
  */
 static void sigusr1_handler(int signum) { }
 
 /*
+ * Setup handler for specified signal
  *
+ * The signal will be handled, in comparision to using the signal() function
  */
 static void signal_handler_setup(int signum, void (*handler) (int))
 {
@@ -335,7 +350,7 @@ static void signal_handler_setup(int signum, void (*handler) (int))
 }
 
 /*
- *
+ * Setup handlers for different signals that can be omitted
  */
 static void signals_handler_setup(void)
 {
@@ -347,7 +362,6 @@ static void signals_handler_setup(void)
 }
 
 /*
- *
  * If either an address or a port has been inputted,
  * the program should connect to a socket
  *
@@ -361,9 +375,9 @@ static int args_socket_create(void)
 {
   if(!args.address && args.port == -1) return 0;
 
-  if(!args.address) args.address = DEFAULT_ADDRESS;
+  if(!args.address)   args.address = DEFAULT_ADDRESS;
 
-  if(args.port == -1) args.port = DEFAULT_PORT;
+  if(args.port == -1) args.port    = DEFAULT_PORT;
 
   return client_or_server_socket_create(&sockfd, &servfd, args.address, args.port, args.debug);
 }
@@ -389,11 +403,14 @@ int main(int argc, char* argv[])
   }
 
 
-  stdin_stdout_fifo_close(&stdin_fifo, &stdout_fifo, args.debug);
+  fifo_close(&stdin_fifo, args.debug);
+
+  fifo_close(&stdout_fifo, args.debug);
 
   socket_close(&sockfd, args.debug);
 
   socket_close(&servfd, args.debug);
+
 
   if(args.debug) info_print("End of main");
 

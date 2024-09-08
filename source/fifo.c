@@ -1,12 +1,16 @@
 /*
  * Written by Hampus Fridholm
  *
- * Last updated: 2024-09-07
+ * Last updated: 2024-09-08
  */
 
 #include "fifo.h"
 
 /*
+ * Open fifo for reading (input/stdin fifo)
+ * 
+ * Optionally print debug messages
+ *
  * RETURN (int status)
  * - 0 | Success
  * - 1 | Missing address for stdin fifo
@@ -44,6 +48,10 @@ static int stdin_fifo_open(int* fifo, const char* path, bool debug)
 }
 
 /*
+ * Open fifo for writing (output/stdout fifo)
+ * 
+ * Optionally print debug messages
+ *
  * RETURN (int status)
  * - 0 | Success
  * - 1 | Missing address for stdout fifo
@@ -81,51 +89,30 @@ static int stdout_fifo_open(int* fifo, const char* path, bool debug)
 }
 
 /*
+ * Close fifo and mark it as closed for future potential use
+ *
+ * Optionally print debug messages
+ *
  * Note: If no open fifo is supplied, nothing is done
  *
  * RETURN (int status)
  * - 0 | Success
  * - 1 | Failed to close stdin fifo
  */
-static int stdin_fifo_close(int* fifo, bool debug)
+int fifo_close(int* fifo, bool debug)
 {
   if(!fifo || *fifo == -1) return 0;
 
-  if(debug) info_print("Closing stdin fifo (%d)", *fifo);
+  if(debug) info_print("Closing fifo (%d)", *fifo);
 
   if(close(*fifo) == -1)
   {
-    if(debug) error_print("Failed to close stdin fifo: %s", strerror(errno));
+    if(debug) error_print("Failed to close fifo: %s", strerror(errno));
 
     return 1;
   }
 
-  if(debug) info_print("Closed stdin fifo");
-
-  *fifo = -1;
-
-  return 0;
-}
-
-/*
- * RETURN (int status)
- * - 0 | Success
- * - 1 | Failed to close stdout fifo
- */
-static int stdout_fifo_close(int* fifo, bool debug)
-{
-  if(!fifo || *fifo == -1) return 0;
-
-  if(debug) info_print("Closing stdout fifo (%d)", *fifo);
-
-  if(close(*fifo) == -1)
-  {
-    if(debug) error_print("Failed to close stdout fifo: %s", strerror(errno));
-
-    return 1;
-  }
-
-  if(debug) info_print("Closed stdout fifo");
+  if(debug) info_print("Closed fifo");
 
   *fifo = -1;
 
@@ -138,11 +125,11 @@ static int stdout_fifo_close(int* fifo, bool debug)
  *   - true  | First open stdin then stdout
  *   - false | First open stdout then stdin
  *
- * RETURN
+ * RETURN (int status)
  * [IMPORTANT] Same as stdin_stdout_fifo_open
  *
- * This is a very nice programming concept
- * I have never seen it being used before
+ * Note: This is a very nice programming concept
+ *       I have never seen it being used before
  */
 int stdout_stdin_fifo_open(int* stdout_fifo, const char* stdout_path, int* stdin_fifo, const char* stdin_path, bool reverse, bool debug)
 {
@@ -188,30 +175,6 @@ int stdin_stdout_fifo_open(int* stdin_fifo, const char* stdin_path, int* stdout_
   }
 
   if(stdout_path && stdout_fifo_open(stdout_fifo, stdout_path, debug) != 0)
-  {
-    status |= (0b01 << 1);
-  }
-
-  return status;
-}
-
-/*
- * RETURN (int status)
- * - 01 | Failed to close stdin fifo
- * - 10 | Failed to close stdout fifo
- *
- * Designed to close stdout even if stdin fails
- */
-int stdin_stdout_fifo_close(int* stdin_fifo, int* stdout_fifo, bool debug)
-{
-  int status = 0;
-
-  if(stdin_fifo_close(stdin_fifo, debug) != 0)
-  {
-    status |= (0b01 << 0);
-  }
-
-  if(stdout_fifo_close(stdout_fifo, debug) != 0)
   {
     status |= (0b01 << 1);
   }

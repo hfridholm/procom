@@ -1,3 +1,9 @@
+/*
+ * Written by Hampus Fridholm
+ *
+ * Last updated: 2024-09-07
+ */
+
 #ifndef THREAD_H
 #define THREAD_H
 

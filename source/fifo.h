@@ -1,3 +1,9 @@
+/*
+ * Written by Hampus Fridholm
+ *
+ * Last updated: 2024-09-08
+ */
+
 #ifndef FIFO_H
 #define FIFO_H
 
@@ -12,7 +18,7 @@
 
 extern int stdin_stdout_fifo_open(int* stdin_fifo, const char* stdin_path, int* stdout_fifo, const char* stdout_path, bool reverse, bool debug);
 
-extern int stdin_stdout_fifo_close(int* stdin_fifo, int* stdout_fifo, bool debug);
+extern int fifo_close(int* fifo, bool debug);
 
 
 extern ssize_t buffer_read(int fd, char* buffer, size_t size);

@@ -1,7 +1,7 @@
 /*
  * Written by Hampus Fridholm
  *
- * Last updated: 2024-09-07
+ * Last updated: 2024-09-08
  */
 
 #include "socket.h"
@@ -10,7 +10,7 @@
  * Create sockaddr from address and port
  *
  * PARAMS
- * - bool debug | Output debug messages
+ * - bool debug | Print debug messages
  *
  * RETURN (struct sockaddr_in addr)
  */
