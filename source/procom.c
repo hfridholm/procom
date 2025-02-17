@@ -10,11 +10,14 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <argp.h>
+#include <signal.h>
 
 #define FIFO_IMPLEMENT
 #include "fifo.h"
 
 #include "socket.h"
+
+#define THREAD_IMPLEMENT
 #include "thread.h"
 
 #define DEBUG_IMPLEMENT
