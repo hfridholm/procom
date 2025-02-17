@@ -15,6 +15,7 @@
 #define FIFO_IMPLEMENT
 #include "fifo.h"
 
+#define SOCKET_IMPLEMENT
 #include "socket.h"
 
 #define THREAD_IMPLEMENT
