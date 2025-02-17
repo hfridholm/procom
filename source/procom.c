@@ -11,7 +11,9 @@
 #include <stdbool.h>
 #include <argp.h>
 
+#define FIFO_IMPLEMENT
 #include "fifo.h"
+
 #include "socket.h"
 #include "thread.h"
 
