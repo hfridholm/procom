@@ -11,10 +11,12 @@
 #include <stdbool.h>
 #include <argp.h>
 
-#include "debug.h"
 #include "fifo.h"
 #include "socket.h"
 #include "thread.h"
+
+#define DEBUG_IMPLEMENT
+#include "debug.h"
 
 pthread_t stdin_thread;
 bool      stdin_running = false;
